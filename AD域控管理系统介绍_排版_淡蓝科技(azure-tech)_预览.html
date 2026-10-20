@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AD域控管理系统介绍_排版_淡蓝科技(azure-tech) · 公众号排版预览</title>
+<style>
+  body{margin:0;background:#eef0f2;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;-webkit-text-size-adjust:100%;}
+  .gzh-toolbar{position:fixed;top:0;left:0;right:0;height:54px;background:#ffffff;box-shadow:0 1px 10px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:99;}
+  .gzh-hint{font-size:13px;color:#6b7280;line-height:1.4;}
+  .gzh-hint b{color:#111827;}
+  .gzh-copy{background:#059669;color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(5,150,105,.28);white-space:nowrap;transition:transform .08s,background .15s;}
+  .gzh-copy:hover{background:#047857;}
+  .gzh-copy:active{transform:translateY(1px);}
+  .gzh-toast{position:fixed;top:66px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:88vw;text-align:center;}
+  .gzh-toast.show{opacity:1;}
+  .gzh-stage{max-width:700px;margin:78px auto 64px;padding:0 8px;}
+  @media(max-width:520px){.gzh-hint{max-width:150px;}}
+</style>
+</head>
+<body>
+<div class="gzh-toolbar">
+  <span class="gzh-hint">👇 下方是排版效果 · 点右侧 <b>复制</b> 直接粘到公众号</span>
+  <button class="gzh-copy" id="gzhCopyBtn" onclick="gzhCopy()">📋 复制到公众号</button>
+</div>
+<div class="gzh-toast" id="gzhToast"></div>
+<div class="gzh-stage">
+  <div id="gzh-content">
+<section style="max-width:677px;margin:0 auto;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:#33475B;line-height:1.85;letter-spacing:0.4px;overflow-x:hidden;">
+
+  <!-- 封面卡 -->
+  <section style="margin:0 0 26px;padding:32px 24px 24px;border-radius:14px;background:linear-gradient(135deg,#071A33 0%,#0D3D7E 58%,#1257B8 100%);">
+    <p style="margin:0 0 14px;">
+      <span style="display:inline-block;border:1px solid rgba(157,199,255,0.45);color:#9DC7FF;font-size:10.5px;font-weight:600;letter-spacing:2px;padding:3px 10px;border-radius:4px;"><span leaf="">PRODUCT NOTE</span></span>
+    </p>
+    <p style="margin:0 0 10px;font-size:22px;font-weight:800;color:#FFFFFF;line-height:1.45;letter-spacing:0.5px;">
+      <span leaf="">还在为 AD 域账号管理焦头烂额？</span>
+    </p>
+    <p style="margin:0 0 20px;font-size:13px;color:#B7D3F5;line-height:1.8;">
+      <span leaf="">给 IT 管理员与决策者的一把「开箱即用」钥匙，把繁琐的域账号运维，装进一个网页里。</span>
+    </p>
+    <section style="height:1px;background:linear-gradient(90deg,rgba(111,168,255,0.55),rgba(111,168,255,0));margin:0 0 14px;">
+      <span leaf=""><br></span>
+    </section>
+    <section style="display:flex;">
+      <section style="flex:1;margin-right:10px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">3 步</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">傻瓜式部署</span></p>
+      </section>
+      <section style="flex:1;margin-right:10px;border-left:1px solid rgba(143,182,228,0.25);padding-left:12px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">8080</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">端口直接访问</span></p>
+      </section>
+      <section style="flex:1;border-left:1px solid rgba(143,182,228,0.25);padding-left:12px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">20 域</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">企业级可扩展</span></p>
+      </section>
+    </section>
+  </section>
+
+  <!-- 引言卡 -->
+  <section style="margin:0 0 30px;padding:22px 22px 20px;background:#F2F7FF;border-left:3px solid #006EFF;border-radius:0 10px 10px 0;">
+    <p style="margin:0 0 12px;font-size:10px;color:#7C8DA6;letter-spacing:2.5px;font-weight:600;">
+      <span leaf="">QUOTE</span>
+    </p>
+    <p style="margin:0;font-size:17px;font-weight:700;color:#0E2038;line-height:1.75;letter-spacing:0.3px;">
+      <span leaf="">「域账号管理，从来不该是运维人员的体力活。」</span>
+    </p>
+    <p style="margin:14px 0 0;text-align:right;font-size:12px;color:#7C8DA6;letter-spacing:0.5px;">
+      <span leaf="">—— PowerShell 中文社区团队</span>
+    </p>
+  </section>
+
+  <!-- 前言 -->
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">设想这样一个下午：新员工入职，你要在域控上创建账号、设置密码、分配组、指定 OU，一气呵成；转眼又有同事离职，你得把他从各个组里逐一摘除、禁用账号。一个普通规模的 Active Directory 环境，</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">这类重复操作每天都在上演</span></span>
+    <span leaf="">。</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">如果只用 Windows 自带的「Active Directory 用户和计算机」管理单元，不仅操作繁琐、容易点错，还几乎谈不上批量与审计。今天要介绍的这款</span>
+    <span style="background:linear-gradient(90deg,rgba(0,110,255,0.12),rgba(0,180,216,0.12));padding:1px 6px;border-radius:4px;font-weight:700;color:#0B4EBA;"><span leaf="">AD 域控管理系统</span></span>
+    <span leaf="">，就是为此而来。</span>
+  </p>
+
+  <!-- 本篇看点 -->
+  <section style="margin:0 0 34px;">
+    <p style="margin:0 0 12px;font-size:10.5px;color:#006EFF;letter-spacing:2px;font-weight:700;">
+      <span leaf="">本篇看点</span>
+    </p>
+    <section style="display:flex;justify-content:space-between;">
+      <section style="flex:1;margin-right:9px;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">01</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">覆盖用户 / 组 / OU / 计算机</span></p>
+      </section>
+      <section style="flex:1;margin-right:9px;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">02</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">多域 / 林信任 / 安全审计</span></p>
+      </section>
+      <section style="flex:1;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">03</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">傻瓜式安装，即装即用</span></p>
+      </section>
+    </section>
+  </section>
+
+  <!-- 第一章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">01</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">PAIN POINT</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">为什么 AD 管理这么累？</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">几乎所有中大型企业都依赖微软 Active Directory 来统一身份与权限。但真正用起来，管理员普遍会撞上几堵墙：</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">账号多、操作散、审计难</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <section style="margin:0 0 12px;display:flex;align-items:flex-start;">
+    <span style="display:inline-block;width:6px;height:6px;background:#006EFF;border-radius:2px;margin:9px 9px 0 0;flex-shrink:0;"><span leaf=""><br></span></span>
+    <p style="margin:0;font-size:14.5px;color:#33475B;line-height:1.8;flex:1;">
+      <strong style="color:#0E2038;"><span leaf="">批量处理乏力：</span></strong>
+      <span leaf="">自带的图形界面一次只能操作一个对象，入职季几十人同时开户，只能一个个点过去。</span>
+    </p>
+  </section>
+  <section style="margin:0 0 12px;display:flex;align-items:flex-start;">
+    <span style="display:inline-block;width:6px;height:6px;background:#006EFF;border-radius:2px;margin:9px 9px 0 0;flex-shrink:0;"><span leaf=""><br></span></span>
+    <p style="margin:0;font-size:14.5px;color:#33475B;line-height:1.8;flex:1;">
+      <strong style="color:#0E2038;"><span leaf="">多域割裂：</span></strong>
+      <span leaf="">一个林里有多个域时，域控各自为政，想跨域看全貌、建信任，只能反复登录切换。</span>
+    </p>
+  </section>
+  <section style="margin:0 0 12px;display:flex;align-items:flex-start;">
+    <span style="display:inline-block;width:6px;height:6px;background:#006EFF;border-radius:2px;margin:9px 9px 0 0;flex-shrink:0;"><span leaf=""><br></span></span>
+    <p style="margin:0;font-size:14.5px;color:#33475B;line-height:1.8;flex:1;">
+      <strong style="color:#0E2038;"><span leaf="">审计留痕缺失：</span></strong>
+      <span leaf="">谁在什么时候改了什么，原生环境难以追溯，出了事只能凭记忆复盘。</span>
+    </p>
+  </section>
+  <section style="margin:0 0 12px;display:flex;align-items:flex-start;">
+    <span style="display:inline-block;width:6px;height:6px;background:#006EFF;border-radius:2px;margin:9px 9px 0 0;flex-shrink:0;"><span leaf=""><br></span></span>
+    <p style="margin:0;font-size:14.5px;color:#33475B;line-height:1.8;flex:1;">
+      <strong style="color:#0E2038;"><span leaf="">误操作风险高：</span></strong>
+      <span leaf="">删除用户、改错权限这类高危动作，一旦手滑往往难以挽回。</span>
+    </p>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">这些痛点，指向的其实是同一个诉求：</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">让域管理更高效、更安全、更可控</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第二章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">02</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">FEATURES</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">核心功能，一屏尽览</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">系统把 AD 运维最常见的几类操作，都收进了一个网页控制台，登录即可用，不再需要在域控上点来点去。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">用户与账号全生命周期</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">新建、编辑、启用禁用、解锁、重置密码、移动 OU、加组退组，一站式完成；离职还能「一键离职处理」——自动禁用、移除所有组、可移入离职 OU，把</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">入转调离的全流程</span></span>
+    <span leaf="">跑通。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">组、OU 与计算机管理</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">组织单位结构可视化，组与成员关系一目了然，计算机对象集中维护。批量导入导出、批量禁用、批量移动，让</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">重复劳动变成一键批量</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">多域与林信任</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">支持同时纳管多个域，跨域统一视图；林信任关系的建立与状态监控也在同一界面完成，告别多台域控之间的来回切换。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">安全与审计</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">细粒度的 RBAC 权限控制、操作日志全程留痕、删除先入回收站，配合域健康检查与安全中心，把</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">安全与合规</span></span>
+    <span leaf="">落实到每一次点击。</span>
+  </p>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第三章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">03</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">HIGHLIGHTS</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">几个让人省心的产品特色</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <section style="display:flex;margin:0 0 26px;">
+    <section style="flex:1;margin-right:8px;padding:16px 12px 14px;background:#F8FBFF;border:1px solid #E3EEFB;border-top:2px solid #006EFF;border-radius:4px 4px 10px 10px;text-align:center;">
+      <p style="margin:0 0 5px;font-size:22px;font-weight:800;color:#006EFF;line-height:1.1;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">B/S</span></p>
+      <p style="margin:0;font-size:11px;color:#7C8DA6;letter-spacing:0.5px;"><span leaf="">网页即用</span></p>
+    </section>
+    <section style="flex:1;margin-right:8px;padding:16px 12px 14px;background:#F8FBFF;border:1px solid #E3EEFB;border-top:2px solid #006EFF;border-radius:4px 4px 10px 10px;text-align:center;">
+      <p style="margin:0 0 5px;font-size:22px;font-weight:800;color:#006EFF;line-height:1.1;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">实时</span></p>
+      <p style="margin:0;font-size:11px;color:#7C8DA6;letter-spacing:0.5px;"><span leaf="">直连域控</span></p>
+    </section>
+    <section style="flex:1;padding:16px 12px 14px;background:#F8FBFF;border:1px solid #E3EEFB;border-top:2px solid #006EFF;border-radius:4px 4px 10px 10px;text-align:center;">
+      <p style="margin:0 0 5px;font-size:22px;font-weight:800;color:#006EFF;line-height:1.1;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">开箱</span></p>
+      <p style="margin:0;font-size:11px;color:#7C8DA6;letter-spacing:0.5px;"><span leaf="">即用</span></p>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">其一，纯网页架构，浏览器打开就能用，客户端零安装；其二，所有写操作</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">直连真实域控</span></span>
+    <span leaf="">，改完即生效、所见即所得，不存在「缓存不一致」的坑；其三，内置密码加密、登录失败锁定、会话超时等多重安全机制。</span>
+  </p>
+
+  <section style="margin:0 0 26px;padding:20px 22px;border-radius:12px;background:linear-gradient(135deg,#0B2A55,#1257B8);">
+    <p style="margin:0;font-size:16px;font-weight:700;color:#FFFFFF;line-height:1.75;letter-spacing:0.4px;">
+      <span leaf="">「把专业能力，藏进最简单的操作里。」</span>
+    </p>
+  </section>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第四章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">04</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">LICENSE</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">授权模式，按需选择</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">产品按「版本 + 域数量 + 单域用户规模」计费，提供</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">按年订阅</span></span>
+    <span leaf="">与</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">永久买断</span></span>
+    <span leaf="">两种模式，灵活贴合不同体量的企业。</span>
+  </p>
+
+  <section style="margin:0 0 24px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr>
+          <th style="background:#0E3A66;color:#FFFFFF;font-weight:700;padding:9px 10px;text-align:left;"><span leaf="">版本</span></th>
+          <th style="background:#0E3A66;color:#FFFFFF;font-weight:700;padding:9px 10px;text-align:left;"><span leaf="">域数量</span></th>
+          <th style="background:#0E3A66;color:#FFFFFF;font-weight:700;padding:9px 10px;text-align:left;"><span leaf="">单域用户</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">标准版</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">1 个域</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">2000 用户</span></td>
+        </tr>
+        <tr>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;background:#F8FBFF;"><span leaf="">专业版</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;background:#F8FBFF;"><span leaf="">3 个域</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;background:#F8FBFF;"><span leaf="">10000 用户</span></td>
+        </tr>
+        <tr>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">企业版</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">20 个域</span></td>
+          <td style="padding:9px 10px;border-bottom:1px solid #E3EEFB;color:#33475B;"><span leaf="">20000 用户</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">企业可根据实际域数量和用户规模，选择最合适的版本；后续业务扩张，也能</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">平滑升级扩容</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第五章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">05</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">DEPLOY</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">安装部署与使用</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">部署可以说简单到「</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">傻瓜式安装</span></span>
+    <span leaf="">」：下载安装包，一路下一步即可，无需任何环境配置。装完后程序会自动注册成 Windows 服务、开机自启，在后台安静运行。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">下载安装包</span>
+  </p>
+
+  <section style="margin:0 0 20px;padding:14px 18px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <p style="margin:0 0 8px;font-size:13px;color:#0E2038;font-weight:700;">
+      <span leaf="">AD 域控管理系统 安装程序 v1.0.3</span>
+    </p>
+    <p style="margin:0;font-size:12.5px;color:#475C73;line-height:1.8;word-break:break-all;">
+      <span leaf="">下载地址：</span>
+      <a href="https://download.powershell.com.cn/%E8%BF%90%E7%BB%B4%E7%A8%8B%E5%BA%8F/AD%E5%9F%9F%E5%8A%A9%E6%89%8B/AD%E5%9F%9F%E6%8E%A7%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F_%E5%AE%89%E8%A3%85%E7%A8%8B%E5%BA%8F_v1.0.3.exe" style="color:#0B4EBA;text-decoration:none;word-break:break-all;"><span leaf="">https://download.powershell.com.cn/运维程序/AD域助手/AD域控管理系统_安装程序_v1.0.3.exe</span></a>
+    </p>
+  </section>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">三步上手</span>
+  </p>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 01</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">安装</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">运行安装程序，按向导点击完成，服务自动注册并启动。</span>
+    </p>
+  </section>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 02</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">访问</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">浏览器打开</span>
+      <span style="background:#F1F6FD;color:#0B4EBA;padding:2px 6px;border-radius:4px;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13.5px;"><span leaf="">8080</span></span>
+      <span leaf="">端口即可进入管理界面，局域网内任意机器都能访问。</span>
+    </p>
+  </section>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 03</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">配置域</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">填入域控地址与账号，连接成功后即可开始管理。</span>
+    </p>
+  </section>
+
+  <section style="margin:0 0 26px;padding:14px 18px;background:#FEF7EC;border-left:3px solid #C2760A;border-radius:0 8px 8px 0;">
+    <p style="margin:0 0 6px;">
+      <span style="display:inline-block;background:#C2760A;color:#FFFFFF;font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;letter-spacing:1px;"><span leaf="">注意</span></span>
+    </p>
+    <p style="margin:0;font-size:13.5px;color:#6B4A12;line-height:1.85;">
+      <span leaf="">由于软件暂未做数字签名，部分杀毒软件可能误报风险。这是常见的误报现象，将程序或其目录</span>
+      <strong style="color:#6B4A12;"><span leaf="">加入信任（白名单）</span></strong>
+      <span leaf="">即可正常使用。</span>
+    </p>
+  </section>
+
+  <!-- 结语 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">∞</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">THE END</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">写在最后</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">AD 域管理不该是运维人员的负担。这款由</span>
+    <strong style="color:#0E2038;"><span leaf="">PowerShell 中文社区团队</span></strong>
+    <span leaf="">开发的管理系统，用「简单、安全、可控」三个词，把域账号运维这件事，真正拉回了桌面。</span>
+  </p>
+
+  <section style="margin:0 0 26px;padding:14px 18px;background:#F0FAF6;border-left:3px solid #0E9F6E;border-radius:0 8px 8px 0;">
+    <p style="margin:0;font-size:13.5px;color:#12654A;line-height:1.85;font-weight:600;">
+      <span leaf="">如果你正被域账号管理困扰，不妨花几分钟装一套试试，相信它会给你省下大把时间。</span>
+    </p>
+  </section>
+
+  <!-- CTA -->
+  <section style="margin:0 0 28px;padding:26px 22px;border-radius:14px;background:linear-gradient(135deg,#EAF3FF,#F6FBFF);border:1px solid #D7E7FB;">
+    <p style="margin:0 0 10px;font-size:10px;color:#006EFF;letter-spacing:2px;font-weight:700;">
+      <span leaf="">DOWNLOAD</span>
+    </p>
+    <p style="margin:0 0 10px;font-size:17px;font-weight:800;color:#0E2038;line-height:1.6;">
+      <span leaf="">一键获取，立即上手</span>
+    </p>
+    <p style="margin:0 0 18px;font-size:13.5px;color:#475C73;line-height:1.85;">
+      <span leaf="">本工具专为 AD 域环境下的运维与控管而生，覆盖账号、组、OU、计算机、多域与安全审计等日常场景。安装包已准备就绪，点击下方链接即可下载。</span>
+    </p>
+    <p style="margin:0 0 14px;">
+      <a href="https://download.powershell.com.cn/%E8%BF%90%E7%BB%B4%E7%A8%8B%E5%BA%8F/AD%E5%9F%9F%E5%8A%A9%E6%89%8B/AD%E5%9F%9F%E6%8E%A7%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F_%E5%AE%89%E8%A3%85%E7%A8%8B%E5%BA%8F_v1.0.3.exe" style="display:inline-block;background:#006EFF;color:#FFFFFF;font-size:13.5px;font-weight:700;padding:10px 22px;border-radius:8px;letter-spacing:1px;text-decoration:none;"><span leaf="">下载安装包（v1.0.3）</span></a>
+    </p>
+    <p style="margin:0 0 14px;padding:12px 14px;background:#FFFFFF;border:1px solid #D7E7FB;border-radius:8px;font-size:12px;color:#475C73;line-height:1.8;word-break:break-all;">
+      <span leaf="">下载地址：</span>
+      <a href="https://download.powershell.com.cn/%E8%BF%90%E7%BB%B4%E7%A8%8B%E5%BA%8F/AD%E5%9F%9F%E5%8A%A9%E6%89%8B/AD%E5%9F%9F%E6%8E%A7%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F_%E5%AE%89%E8%A3%85%E7%A8%8B%E5%BA%8F_v1.0.3.exe" style="color:#0B4EBA;text-decoration:none;word-break:break-all;"><span leaf="">https://download.powershell.com.cn/运维程序/AD域助手/AD域控管理系统_安装程序_v1.0.3.exe</span></a>
+    </p>
+    <p style="margin:0;font-size:11.5px;color:#8FA3BC;line-height:1.7;">
+      <span leaf="">如遇安装或使用问题，欢迎随时私信沟通交流，我们会在第一时间为你解答。</span>
+    </p>
+  </section>
+
+  <!-- END -->
+  <section style="text-align:center;margin:8px 0 30px;">
+    <section style="display:flex;align-items:center;justify-content:center;">
+      <span style="display:inline-block;height:1px;width:42px;background:#DCE8F8;margin-right:12px;"><span leaf=""><br></span></span>
+      <span style="font-size:10px;color:#9AAEC4;letter-spacing:4px;font-weight:600;"><span leaf="">END</span></span>
+      <span style="display:inline-block;height:1px;width:42px;background:#DCE8F8;margin-left:12px;"><span leaf=""><br></span></span>
+    </section>
+  </section>
+
+  <!-- 签名 -->
+  <section style="padding:20px 0 10px;border-top:1px solid #E9F1FB;">
+    <p style="margin:0 0 12px;font-size:14.5px;line-height:1.85;color:#33475B;text-align:justify;">
+      <span leaf="">感谢你读到这里。若你对这款 AD 域控管理系统有任何疑问，或想聊聊企业 AD 运维中的实际需求，</span>
+      <strong style="color:#0E2038;"><span leaf="">欢迎私信沟通交流</span></strong>
+      <span leaf="">，我们很乐意与你一起探讨。</span>
+    </p>
+    <p style="margin:0;font-size:14.5px;line-height:1.85;color:#33475B;text-align:justify;">
+      <span leaf="">如果你觉得今天这篇有收获，欢迎</span>
+      <strong style="color:#0E2038;"><span leaf="">点赞、在看、转发</span></strong>
+      <span leaf="">三连，也别忘了关注我们，不错过更多运维干货。我们下篇见。</span>
+    </p>
+  </section>
+
+</section>
+  </div>
+</div>
+<script>
+  function gzhShowToast(msg){
+    var t=document.getElementById('gzhToast');
+    t.textContent=msg;t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer=setTimeout(function(){t.classList.remove('show');},2800);
+  }
+  function gzhCopy(){
+    var el=document.getElementById('gzh-content');
+    // 选中渲染后的富文本节点并复制（等价于手动 Ctrl+A / Ctrl+C，保留全部样式）
+    var range=document.createRange();
+    range.selectNodeContents(el);
+    var sel=window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    var ok=false;
+    try{ok=document.execCommand('copy');}catch(e){ok=false;}
+    sel.removeAllRanges();
+    var btn=document.getElementById('gzhCopyBtn');
+    if(ok){
+      gzhShowToast('✅ 已复制！去公众号编辑器按 Ctrl/⌘+V 粘贴即可');
+      var old=btn.textContent;btn.textContent='✅ 已复制';
+      setTimeout(function(){btn.textContent=old;},2200);
+    }else{
+      gzhShowToast('⚠ 自动复制失败，请手动全选(Ctrl/⌘+A)再复制(Ctrl/⌘+C)');
+    }
+  }
+</script>
+</body>
+</html>

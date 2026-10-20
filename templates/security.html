@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}安全中心 · {{ app_name }}{% endblock %}
+{% block page_title %}安全中心{% endblock %}
+{% block page_sub %}安全态势体检 + 异常登录检测{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs adm-tabs mb-3" id="secTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#panePosture" type="button">
+    {{ ic.icon('shield', 15) }} 安全态势体检</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#paneAnomaly" type="button">
+    {{ ic.icon('warn', 15) }} 异常登录检测</button></li>
+</ul>
+
+<div class="tab-content">
+  <!-- ============ 安全态势体检 ============ -->
+  <div class="tab-pane fade show active" id="panePosture">
+    <div class="d-flex gap-2 mb-3">
+      <button class="btn btn-sm btn-primary" id="btnScan">{{ ic.icon('refresh', 14) }} 一键巡检</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnExport" disabled>{{ ic.icon('download', 14) }} 导出报告</button>
+      <span class="help-text ms-auto align-self-center" id="postureTime"></span>
+    </div>
+    <div class="stat-grid mb-3" id="postureStats">
+      <div class="stat blue"><div class="sicon">{{ ic.icon('shield', 20) }}</div>
+        <div><div class="sval" id="stScore">—</div><div class="slabel">综合安全评分</div></div></div>
+      <div class="stat red"><div class="sicon">{{ ic.icon('x', 20) }}</div>
+        <div><div class="sval" id="stHigh">—</div><div class="slabel">高危</div></div></div>
+      <div class="stat amber"><div class="sicon">{{ ic.icon('warn', 20) }}</div>
+        <div><div class="sval" id="stMedium">—</div><div class="slabel">中危</div></div></div>
+      <div class="stat gray"><div class="sicon">{{ ic.icon('info', 20) }}</div>
+        <div><div class="sval" id="stLow">—</div><div class="slabel">低危</div></div></div>
+    </div>
+    <div id="postureList">
+      <div class="empty-state">点击「一键巡检」扫描所有已纳管域的安全配置，生成安全评分与风险清单。</div>
+    </div>
+  </div>
+
+  <!-- ============ 异常登录检测 ============ -->
+  <div class="tab-pane fade" id="paneAnomaly">
+    <div class="d-flex gap-2 mb-3">
+      <button class="btn btn-sm btn-primary" id="btnAnomaly">{{ ic.icon('refresh', 14) }} 执行检测</button>
+      <span class="help-text ms-auto align-self-center" id="anomalyTime"></span>
+    </div>
+    <div id="anomalyList">
+      <div class="empty-state">基于审计日志检测连续登录失败、单 IP 多账号、非工作时间登录、账号多 IP 等异常。</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SEV = { high: ['red', '高危'], medium: ['amber', '中危'], low: ['gray', '低危'] };
+let lastPosture = null;
+
+function renderFindings(box, findings) {
+  if (!findings || !findings.length) {
+    box.innerHTML = '<div class="empty-state">未发现风险项，安全状态良好。</div>';
+    return;
+  }
+  box.innerHTML = findings.map(f => {
+    const c = SEV[f.severity] || ['gray', f.severity];
+    const items = (f.items || []).map(it => '<div class="help-text mono" style="font-size:11.5px">· ' + ADM.esc(it) + '</div>').join('');
+    return '<div class="card mb-2"><div class="card-body py-2">' +
+      '<div class="d-flex align-items-center gap-2 mb-1">' +
+      '<span class="badge-soft ' + c[0] + '">' + c[1] + '</span>' +
+      '<span class="fw-semibold" style="font-size:13.5px">' + ADM.esc(f.title) + '</span>' +
+      '<span class="help-text ms-auto">' + (f.count || 0) + ' 项</span></div>' +
+      (f.detail ? '<div class="help-text mb-1">' + ADM.esc(f.detail) + '</div>' : '') +
+      items + '</div></div>';
+  }).join('');
+}
+
+document.getElementById('btnScan').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  ADM.btnLoading(btn, true, '巡检中…');
+  const r = await ADM.get('/security/api/posture', { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '巡检失败'); return; }
+  const d = r.data;
+  lastPosture = d;
+  document.getElementById('stScore').textContent = d.overall_score;
+  const scoreEl = document.getElementById('stScore');
+  scoreEl.style.color = d.overall_score >= 90 ? '#16a34a' : (d.overall_score >= 70 ? '#d97706' : '#dc2626');
+  document.getElementById('stHigh').textContent = d.high;
+  document.getElementById('stMedium').textContent = d.medium;
+  document.getElementById('stLow').textContent = d.low;
+  document.getElementById('postureTime').textContent = '巡检时间：' + (d.checked_at || '');
+  document.getElementById('btnExport').disabled = false;
+
+  // 按域分组渲染
+  const allFindings = [];
+  (d.domains || []).forEach(dm => {
+    (dm.findings || []).forEach(f => {
+      allFindings.push(Object.assign({}, f, { title: f.title + '（' + dm.name + '/' + dm.domain + '）' }));
+    });
+  });
+  renderFindings(document.getElementById('postureList'), allFindings);
+  ADM.ok('巡检完成');
+});
+
+document.getElementById('btnExport').addEventListener('click', () => {
+  window.location.href = '/security/export';
+});
+
+document.getElementById('btnAnomaly').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  ADM.btnLoading(btn, true, '检测中…');
+  const r = await ADM.get('/security/api/anomalies', { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '检测失败'); return; }
+  document.getElementById('anomalyTime').textContent = '检测时间：' + (r.data.checked_at || '');
+  const items = r.data.items || [];
+  const box = document.getElementById('anomalyList');
+  if (!items.length) {
+    box.innerHTML = '<div class="empty-state">未发现异常登录行为。</div>';
+  } else {
+    box.innerHTML = items.map(f => {
+      const c = SEV[f.severity] || ['gray', f.severity];
+      return '<div class="card mb-2"><div class="card-body py-2">' +
+        '<div class="d-flex align-items-center gap-2 mb-1">' +
+        '<span class="badge-soft ' + c[0] + '">' + c[1] + '</span>' +
+        '<span class="fw-semibold" style="font-size:13.5px">' + ADM.esc(f.title) + '</span>' +
+        '<span class="help-text ms-auto">' + (f.count || 0) + ' 项</span></div>' +
+        (f.items || []).map(it => '<div class="help-text mono" style="font-size:11.5px">· ' + ADM.esc(it) + '</div>').join('') +
+        '</div></div>';
+    }).join('');
+  }
+  ADM.ok('检测完成');
+});
+</script>
+{% endblock %}

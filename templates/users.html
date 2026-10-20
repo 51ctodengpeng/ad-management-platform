@@ -1,0 +1,593 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}用户管理 · {{ app_name }}{% endblock %}
+{% block page_title %}AD 用户管理{% endblock %}
+{% block page_sub %}
+{% if f.domain_id %}当前域：{{ cur_domain.name }}（{{ cur_domain.domain_name }}）{% if cur_domain.status=='offline' %}
+  <span class="badge-soft red">离线·只读</span>{% endif %}
+{% else %}全部域 · 共 {{ total }} 条记录（读缓存）{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+{% if f.domain_id %}
+<a class="btn btn-sm btn-primary" href="{{ url_for('users.new', domain_id=f.domain_id) }}">{{ ic.icon('plus', 15) }} 新增用户</a>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('users.import_page', domain_id=f.domain_id) }}">{{ ic.icon('upload', 15) }} 批量导入</a>
+{% endif %}
+<button type="button" class="btn btn-sm btn-outline-secondary" id="btnExport">{{ ic.icon('download', 15) }} 导出</button>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  {% if tree %}
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('sitemap') }} 部门 OU 树
+        <a class="ms-auto help-text" href="{{ url_for('ou.index', domain_id=f.domain_id) }}">管理</a>
+      </div>
+      <div class="card-body" style="max-height:calc(100vh - 250px);overflow:auto">
+        {% macro render_node(n, level) %}
+          <li>
+            <div class="ou-node {{ 'active' if f.ou_dn == n.dn }}" data-dn="{{ n.dn }}"
+                 style="padding-left:{{ 6 + level * 4 }}px">
+              {% if n.children %}<span class="caret">{{ ic.icon('chevron-down', 13) }}</span>
+              {% else %}<span class="caret" style="visibility:hidden">{{ ic.icon('chevron-right', 13) }}</span>{% endif %}
+              {{ ic.icon('folder', 14) }}
+              <span class="text-truncate" style="max-width:150px" title="{{ n.dn }}">{{ n.name }}</span>
+              <span class="cnt">{{ n.subtree_users }}</span>
+            </div>
+            {% if n.children %}<ul>{% for c in n.children %}{{ render_node(c, level + 1) }}{% endfor %}</ul>{% endif %}
+          </li>
+        {% endmacro %}
+        <div class="ou-tree">
+          <ul>{{ render_node(tree, 0) }}</ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="{{ 'col-lg-9' if tree else 'col-12' }}" id="userListBox">
+    <div class="card">
+      <form class="filter-bar" id="filterForm" method="get">
+        <select class="form-select form-select-sm" name="domain_id" style="width:190px" onchange="this.form.submit()">
+          <option value="">全部域</option>
+          {% for d in domains %}
+          <option value="{{ d.id }}" {{ 'selected' if f.domain_id == d.id }}>{{ d.name }}（{{ d.domain_name }}）</option>
+          {% endfor %}
+        </select>
+        <div class="input-group input-group-sm" style="width:250px">
+          <span class="input-group-text bg-white">{{ ic.icon('search', 14) }}</span>
+          <input class="form-control" name="keyword" value="{{ f.keyword }}" placeholder="登录名 / 姓名 / 邮箱 / DN">
+        </div>
+        <select class="form-select form-select-sm" name="enabled" style="width:110px">
+          <option value="all" {{ 'selected' if f.enabled=='all' }}>全部状态</option>
+          <option value="1" {{ 'selected' if f.enabled=='1' }}>仅启用</option>
+          <option value="0" {{ 'selected' if f.enabled=='0' }}>仅禁用</option>
+        </select>
+        <select class="form-select form-select-sm" name="tag" style="width:130px">
+          <option value="">全部标记</option>
+          <option value="locked" {{ 'selected' if f.tag=='locked' }}>已锁定</option>
+          <option value="pwd_expired" {{ 'selected' if f.tag=='pwd_expired' }}>密码已过期</option>
+          <option value="pwd_soon" {{ 'selected' if f.tag=='pwd_soon' }}>14 天内过期</option>
+          <option value="never_logon" {{ 'selected' if f.tag=='never_logon' }}>从未登录</option>
+          <option value="idle_90" {{ 'selected' if f.tag=='idle_90' }}>90 天未登录</option>
+        </select>
+        {% if f.ou_dn %}<input type="hidden" name="ou_dn" value="{{ f.ou_dn }}">{% endif %}
+        <button class="btn btn-sm btn-primary">{{ ic.icon('search', 14) }} 查询</button>
+        <a class="btn btn-sm btn-light border" href="{{ url_for('users.index', domain_id=f.domain_id or '') }}">重置</a>
+        {% if f.ou_dn %}
+        <span class="badge-soft blue">OU 过滤：{{ f.ou_dn.split(',')[0][3:] }}
+          <a href="{{ url_for('users.index', domain_id=f.domain_id, keyword=f.keyword) }}" class="text-decoration-none">✕</a></span>
+        {% endif %}
+      </form>
+      <!-- 批量操作栏（勾选后显示；不用 d-flex，其 !important 会压制内联 display:none） -->
+      <div class="align-items-center gap-1 flex-wrap px-3 py-2" id="batchBar"
+           style="display:none;border-top:1px solid var(--adm-border);border-bottom:1px solid var(--adm-border);background:#f8fafd">
+        <span class="help-text fw-semibold me-1">已选 <b id="selCount">0</b> 项</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="enable">启用</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="disable">禁用</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="unlock">解锁</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="move">移动OU</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="add_group">加组</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="reset_password">重置密码</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-batch="update_field">改属性</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-batch="delete">批量删除</button>
+        <button type="button" class="btn btn-sm btn-light border ms-auto" id="btnClearSel">取消选择</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" id="userTable">
+          <thead>
+            <tr>
+              <th style="width:34px"><input type="checkbox" class="form-check-input"></th>
+              <th><a class="text-decoration-none text-reset" href="?domain_id={{ f.domain_id or '' }}&keyword={{ f.keyword }}&sort=sam&order={{ 'desc' if sort=='sam' and order=='asc' else 'asc' }}">登录名 ⇅</a></th>
+              <th>显示名称</th>
+              <th>部门 / 职位</th>
+              <th>所属 OU</th>
+              <th>状态</th>
+              <th>最后登录</th>
+              <th>密码过期</th>
+              <th style="width:150px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for u in users %}
+            <tr data-id="{{ u['id'] }}" data-domain="{{ u['domain_id'] }}"
+                data-sam="{{ u['sam_account_name'] }}" data-name="{{ u['display_name'] }}"
+                data-enabled="{{ u['enabled'] }}" data-locked="{{ u['locked'] }}">
+              <td><input type="checkbox" class="form-check-input" value="{{ u['id'] }}"></td>
+              <td>
+                <a href="{{ url_for('users.detail', uid=u['id']) }}" class="fw-semibold text-decoration-none">
+                  {{ u['sam_account_name'] }}</a>
+                {% if u['locked'] %}<span class="badge-soft red ms-1">锁定</span>{% endif %}
+                <div class="help-text">{{ u['user_principal_name'] }}</div>
+              </td>
+              <td>{{ u['display_name'] }}
+                {% if not f.domain_id %}<div class="help-text">{{ dm[u['domain_id']].domain_name if u['domain_id'] in dm }}</div>{% endif %}
+              </td>
+              <td>{{ u['department'] or '—' }}{% if u['title'] %} <span class="text-muted">/ {{ u['title'] }}</span>{% endif %}</td>
+              <td class="text-muted" style="font-size:12px" title="{{ u['ou_dn'] }}">
+                {{ u['ou_dn'].split(',')[0][3:] if u['ou_dn'] else '域根' }}</td>
+              <td>
+                {% if u['enabled'] %}<span class="badge-soft green">启用</span>
+                {% else %}<span class="badge-soft gray">禁用</span>{% endif %}
+              </td>
+              <td class="text-muted" style="font-size:12px">{{ u['last_logon'] or '从未' }}</td>
+              <td style="font-size:12px">
+                {% if u['pwd_never_expires'] %}<span class="text-muted">永不过期</span>
+                {% elif not u['pwd_expires_at'] %}<span class="text-muted">—</span>
+                {% elif u['pwd_expires_at'] < now_str %}<span class="text-danger">已过期</span>
+                {% else %}{{ u['pwd_expires_at'][:10] }}{% endif %}
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <a class="btn btn-light border" href="{{ url_for('users.detail', uid=u['id']) }}">详情</a>
+                  <a class="btn btn-light border" href="{{ url_for('users.edit', uid=u['id']) }}">编辑</a>
+                  <button class="btn btn-light border dropdown-toggle" data-bs-toggle="dropdown"></button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="font-size:13px">
+                    <li><button class="dropdown-item" data-row-act="toggle">{{ '禁用账号' if u['enabled'] else '启用账号' }}</button></li>
+                    <li><button class="dropdown-item" data-row-act="unlock" {{ 'disabled' if not u['locked'] }}>解锁账号</button></li>
+                    <li><button class="dropdown-item" data-row-act="reset">重置密码</button></li>
+                    <li><button class="dropdown-item" data-row-act="move">移动到 OU</button></li>
+                    <li><button class="dropdown-item" data-row-act="group">加入 / 移出用户组</button></li>
+                    {% if lic_features.offboard %}<li><button class="dropdown-item text-warning" data-row-act="offboard">离职处理</button></li>{% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button class="dropdown-item text-danger" data-row-act="delete">删除用户</button></li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="9"><div class="empty-state">
+              {{ ic.icon('users', 32) }}
+              <div>没有符合条件的用户</div>
+              <div class="help-text mt-1">
+                {% if not f.domain_id %}请选择左侧筛选域；{% endif %}
+                若该域尚未同步，请到「多域管理」执行一次全量同步
+              </div>
+            </div></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% set qs = 'domain_id=' ~ (f.domain_id or '') ~ '&keyword=' ~ f.keyword ~ '&enabled=' ~ f.enabled ~ '&tag=' ~ f.tag ~ '&ou_dn=' ~ f.ou_dn %}
+      <div class="d-flex align-items-center gap-2 px-3 py-2 flex-wrap" style="border-top:1px solid var(--adm-border)">
+        <span class="help-text">共 {{ page.total }} 条 · 第 {{ page.page }}/{{ page.pages }} 页</span>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <select class="form-select form-select-sm" style="width:auto" id="pageSizeSel"
+                  onchange="location.href='?{{ qs }}&page_size=' + this.value + '&page=1'">
+            {% for ps in [20, 50, 100, 200, 500, 1000] %}
+            <option value="{{ ps }}" {{ 'selected' if page.size == ps }}>{{ ps }} 条/页</option>
+            {% endfor %}
+          </select>
+          {% if page.pages > 1 %}
+          <nav>
+            <ul class="pagination pagination-sm mb-0">
+              <li class="page-item {{ 'disabled' if not page.has_prev }}">
+                <a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ page.page-1 }}">上一页</a></li>
+              {% for p in range(1, page.pages + 1) %}
+                {% if p <= 2 or p > page.pages - 2 or (p - page.page)|abs <= 1 %}
+                <li class="page-item {{ 'active' if p == page.page }}">
+                  <a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ p }}">{{ p }}</a></li>
+                {% elif p == 3 or p == page.pages - 2 %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+              {% endfor %}
+              <li class="page-item {{ 'disabled' if not page.has_next }}">
+                <a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ page.page+1 }}">下一页</a></li>
+            </ul>
+          </nav>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const NOW = "{{ now_str }}";
+
+// 导出用户（选择性导出为高级功能，标准版仅支持导出全部/当前筛选结果）
+document.getElementById('btnExport').addEventListener('click', () => {
+  ADM.formModal({
+    title: '导出用户{% if lic_features.selective_export %}（按条件选择性导出）{% endif %}',
+    body: '<div class="mb-2"><label class="form-label">导出范围</label>' +
+          '<select class="form-select" name="scope"><option value="current">当前筛选结果</option>' +
+          '<option value="all">全部用户（忽略筛选）</option></select></div>' +
+          {% if lic_features.selective_export %}
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">注册起始日期</label>' +
+          '<input class="form-control" type="date" name="created_from"></div>' +
+          '<div class="col"><label class="form-label">注册结束日期</label>' +
+          '<input class="form-control" type="date" name="created_to"></div></div>' +
+          '<div class="mb-2"><label class="form-label">职位 / 角色关键词</label>' +
+          '<input class="form-control" name="title" placeholder="如：经理 / 工程师（留空=全部）"></div>' +
+          '<div class="help-text">条件为 AND 组合；导出为 Excel，含 19 列字段与「导出说明」页。</div>'
+          {% else %}
+          '<div class="help-text">导出为 Excel，含 19 列字段与「导出说明」页。</div>'
+          {% endif %},
+    okText: '导出 Excel',
+    onSubmit: (form) => {
+      const scope = form.querySelector('[name=scope]').value;
+      const p = new URLSearchParams();
+      p.set('scope', scope);
+      if (scope === 'current') {
+        const cur = new URLSearchParams(location.search);
+        ['domain_id', 'keyword', 'enabled', 'tag', 'ou_dn', 'department'].forEach(k => {
+          if (cur.get(k)) p.set(k, cur.get(k));
+        });
+      }
+      {% if lic_features.selective_export %}
+      const cf = form.querySelector('[name=created_from]').value;
+      const ct = form.querySelector('[name=created_to]').value;
+      const t = form.querySelector('[name=title]').value.trim();
+      if (cf) p.set('created_from', cf);
+      if (ct) p.set('created_to', ct);
+      if (t) p.set('title', t);
+      {% endif %}
+      window.location.href = '/users/export?' + p.toString();
+      return true;
+    }
+  });
+});
+
+// OU 树：点击箭头=折叠/展开（箭头旋转反馈），点击节点=AJAX 局部筛选（不整页跳转）
+document.querySelectorAll('.ou-node .caret').forEach(c => {
+  c.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const node = c.closest('.ou-node');
+    const ul = node.parentElement.querySelector('ul');
+    if (!ul) return;
+    const fold = ul.style.display !== 'none';
+    ul.style.display = fold ? 'none' : '';
+    c.classList.toggle('collapsed', fold);
+  });
+});
+document.querySelectorAll('.ou-node').forEach(n => {
+  n.addEventListener('click', async (e) => {
+    if (e.target.closest('.caret')) return;   // 箭头由上面的处理器负责
+    // 就地高亮（树不刷新，手动切 active）
+    document.querySelectorAll('.ou-node').forEach(x => x.classList.remove('active'));
+    n.classList.add('active');
+    const url = new URL(location.href);
+    if (n.dataset.dn) url.searchParams.set('ou_dn', n.dataset.dn);
+    else url.searchParams.delete('ou_dn');    // 点「域根」= 清除 OU 筛选
+    url.searchParams.delete('page');
+    const box = document.getElementById('userListBox');
+    try {
+      const resp = await fetch(url.toString());
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const html = await resp.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const nb = doc.getElementById('userListBox');
+      if (nb && box) { box.innerHTML = nb.innerHTML; bindUserListEvents(); }
+      history.replaceState(null, '', url.toString());
+    } catch (err) {
+      location.href = url.toString();   // 兜底：异常则整页跳转
+    }
+  });
+});
+
+async function postAction(url, data) {
+  const r = await ADM.post(url, data);
+  if (r.ok) setTimeout(() => location.reload(), 700);
+  return r;
+}
+
+// 行内操作（按钮与右键菜单共用）
+async function userRowAction(act, tr) {
+  const id = tr.dataset.id, sam = tr.dataset.sam, enabled = tr.dataset.enabled === '1';
+  if (act === 'toggle') {
+    const yes = await ADM.confirmDanger({
+      title: enabled ? '禁用账号' : '启用账号', message: (enabled ? '禁用后该用户将无法登录域（邮箱/共享等域资源访问失效）。' : '启用后该用户可重新登录域。'),
+      items: ['账号：' + sam], confirmText: enabled ? '禁用' : '启用'
+    });
+    if (yes) postAction('/users/' + id + '/toggle', { enabled: enabled ? '0' : '1' });
+  } else if (act === 'unlock') {
+    postAction('/users/' + id + '/unlock', {});
+  } else if (act === 'reset') {
+    showResetPassword(id, sam);
+  } else if (act === 'move') {
+    showMove(id, sam);
+  } else if (act === 'group') {
+    showGroup(id, sam, tr.dataset.domain);
+  } else if (act === 'delete') {
+    const yes = await ADM.confirmDanger({
+      title: '删除用户（不可恢复）',
+      message: '将从 AD 中直接删除该用户对象，删除后无法通过本系统恢复（需域控回收站或备份）。',
+      items: ['账号：' + sam, '该用户所属组成员关系将一并移除'],
+      confirmText: '确认删除'
+    });
+    if (yes) postAction('/users/' + id + '/delete', { confirm: '1' });
+  } else if (act === 'offboard') {
+    showOffboard(id, sam, tr.dataset.domain);
+  }
+}
+
+async function showOffboard(id, sam, domainId) {
+  const opts = await ouOptions(domainId);
+  ADM.formModal({
+    title: '离职处理 · ' + sam,
+    body: '<div class="alert alert-warning py-2 mb-2" style="font-size:12px">将依次执行：①移除所有组成员关系 ②禁用账号 ③（可选）移动到离职 OU。</div>' +
+          '<label class="form-label">移入离职 OU（可选）</label>' +
+          '<select class="form-select" name="offboard_ou"><option value="">不移入（仅禁用 + 移除组）</option>' + opts + '</select>',
+    okText: '执行离职处理',
+    onSubmit: async (form) => {
+      const ou = form.querySelector('[name=offboard_ou]').value;
+      const yes = await ADM.confirmDanger({
+        title: '确认离职处理',
+        message: '将立即禁用该账号并移除其所有组成员关系，属不可逆高危操作。',
+        items: ['账号：' + sam, ou ? '移入：' + ou : '不移入 OU'],
+        requireInput: sam, inputHint: '请输入登录名 ' + sam + ' 以确认',
+        confirmText: '确认离职处理'
+      });
+      if (!yes) return false;
+      const r = await ADM.post('/users/' + id + '/offboard', { offboard_ou: ou, confirm: '1' });
+      if (r.ok) { setTimeout(() => location.reload(), 800); return true; }
+      return false;
+    }
+  });
+}
+
+async function ouOptions(domainId) {
+  const r = await ADM.get('/ous/api/options?domain_id=' + domainId, { silent: true });
+  if (!r.ok) return '';
+  return r.data.map(o => '<option value="' + ADM.esc(o.dn) + '">' +
+    '&nbsp;'.repeat(Math.max(0, o.depth) * 2) + ADM.esc(o.name) + '</option>').join('');
+}
+
+function showResetPassword(id, sam) {
+  const body =
+    '<div class="mb-3"><label class="form-label">目标账号</label>' +
+    '<input class="form-control" value="' + ADM.esc(sam) + '" disabled></div>' +
+    '<div class="mb-2"><label class="form-label">新密码</label>' +
+    '<div class="input-group"><input class="form-control" id="newPwd" name="password" value="' + ADM.randomPassword(14) + '">' +
+    '<button class="btn btn-outline-secondary" type="button" id="btnGen">随机</button>' +
+    '<button class="btn btn-outline-secondary" type="button" onclick="ADM.togglePwd(\'newPwd\', this)">显示</button></div>' +
+    '<div class="form-text">至少 7 位，包含大写/小写/数字/符号中 3 类；重置后密码不写入日志</div></div>' +
+    '<div class="form-check"><input class="form-check-input" type="checkbox" id="mustChange" checked>' +
+    '<label class="form-check-label" for="mustChange">用户下次登录必须修改密码</label></div>';
+  const m = ADM.formModal({
+    title: '重置密码 · ' + sam, body: body, okText: '重置并解锁',
+    onSubmit: async (form) => {
+      const pwd = form.querySelector('#newPwd').value;
+      const yes = await ADM.confirmDanger({
+        title: '确认重置密码', message: '重置密码属于高危操作，将立即修改该账号的域密码并解锁账号。',
+        items: ['账号：' + sam, '新密码：' + pwd], confirmText: '确认重置'
+      });
+      if (!yes) return false;
+      const r = await ADM.post('/users/' + id + '/reset-password', {
+        password: pwd, must_change: form.querySelector('#mustChange').checked ? '1' : '0', confirm: '1'
+      });
+      if (r.ok) { setTimeout(() => location.reload(), 900); return true; }
+      return false;
+    }
+  });
+  m.form.querySelector('#btnGen').onclick = () => {
+    m.form.querySelector('#newPwd').value = ADM.randomPassword(14);
+  };
+}
+
+async function showMove(id, sam) {
+  const tr = document.querySelector('#userTable tr[data-id="' + id + '"]');
+  const opts = await ouOptions(tr.dataset.domain);
+  ADM.formModal({
+    title: '移动用户 · ' + sam,
+    body: '<label class="form-label">目标 OU</label><select class="form-select" name="target_ou">' + opts + '</select>' +
+          '<div class="form-text mt-2">只能移动到同一域内的 OU；移动后用户的组、权限保持不变</div>',
+    onSubmit: async (form) => {
+      const target = form.querySelector('[name=target_ou]').value;
+      const r = await ADM.post('/users/' + id + '/move', { target_ou: target });
+      if (r.ok) { setTimeout(() => location.reload(), 700); return true; }
+      return false;
+    }
+  });
+}
+
+// 用户组下拉（走 /groups/api/options，避免抓取页面 HTML）
+async function groupOptions(domainId) {
+  const r = await ADM.get('/groups/api/options?domain_id=' + domainId, { silent: true });
+  if (!r.ok) return '';
+  return r.data.map(g => '<option value="' + ADM.esc(g.dn) + '">' + ADM.esc(g.label) + '</option>').join('');
+}
+
+async function showGroup(id, sam, domainId) {
+  const options = await groupOptions(domainId);
+  if (!options) { ADM.warn('该域没有可用的用户组，请先在「用户组」中创建'); return; }
+  ADM.formModal({
+    title: '用户组成员 · ' + sam,
+    body: '<label class="form-label">选择用户组</label><select class="form-select" name="group_dn">' + options + '</select>' +
+          '<div class="form-text mt-2">加入/移出会立即写入 AD 域控，并刷新该成员的用户组缓存</div>' +
+          '<div class="d-flex gap-2 mt-3"><button type="button" class="btn btn-sm btn-primary" data-g="add">加入该组</button>' +
+          '<button type="button" class="btn btn-sm btn-outline-danger" data-g="remove">从该组移除</button></div>',
+    okText: '关闭',
+    onSubmit: () => true
+  });
+  const modalEl = document.querySelector('.modal.show');
+  modalEl.querySelectorAll('[data-g]').forEach(b => b.onclick = async () => {
+    const gdn = modalEl.querySelector('[name=group_dn]').value;
+    ADM.btnLoading(b, true);
+    const r3 = await ADM.post('/users/' + id + '/groups', { group_dn: gdn, action: b.dataset.g });
+    ADM.btnLoading(b, false);
+    if (r3.ok) setTimeout(() => location.reload(), 800);
+  });
+}
+
+// 批量操作（由列表区事件委托调用）
+async function doBatch(act, btn) {
+  const ids = ADM.selectedIds('#userTable');
+  if (!ids.length) return;
+  const labels = { enable: '批量启用', disable: '批量禁用', unlock: '批量解锁', move: '批量移动 OU',
+                   add_group: '批量加入用户组', delete: '批量删除', reset_password: '批量重置密码',
+                   update_field: '批量修改属性' };
+  if (act === 'reset_password') {
+    ADM.formModal({
+      title: '批量重置密码',
+      body: '<label class="form-label">新密码</label>' +
+            '<div class="input-group"><input class="form-control" id="batchPwd" value="' + ADM.randomPassword(14) + '">' +
+            '<button class="btn btn-outline-secondary" type="button" id="batchGen">随机</button></div>' +
+            '<div class="form-text mt-2">至少 7 位含 3 类字符；重置后用户下次登录须改密</div>',
+      okText: '重置密码',
+      onSubmit: async (form) => {
+        const pwd = form.querySelector('#batchPwd').value;
+        const yes = await ADM.confirmDanger({
+          title: '确认批量重置密码', message: '将立即修改所选 ' + ids.length + ' 个用户的域密码。',
+          items: ['新密码：' + pwd], confirmText: '确认重置'
+        });
+        if (!yes) return false;
+        const r = await ADM.post('/users/batch', { action: 'reset_password', ids: ids, password: pwd, confirm: '1' });
+        if (r.ok) setTimeout(() => location.reload(), 900);
+        return false;
+      }
+    });
+    return;
+  }
+  if (act === 'update_field') {
+    ADM.formModal({
+      title: '批量修改属性',
+      body: '<label class="form-label">字段</label><select class="form-select" name="field">' +
+            '<option value="department">部门</option><option value="title">职位</option>' +
+            '<option value="company">公司</option><option value="description">描述</option></select>' +
+            '<label class="form-label mt-2">新值</label><input class="form-control" name="value">',
+      okText: '修改',
+      onSubmit: async (form) => {
+        const field = form.querySelector('[name=field]').value;
+        const value = form.querySelector('[name=value]').value;
+        const r = await ADM.post('/users/batch', { action: 'update_field', ids: ids, field: field, value: value, confirm: '1' });
+        if (r.ok) setTimeout(() => location.reload(), 900);
+        return false;
+      }
+    });
+    return;
+  }
+  if (act === 'delete') {
+    const yes = await ADM.confirmDanger({
+      title: '批量删除用户（不可恢复）',
+      message: '将从 AD 直接删除所选 ' + ids.length + ' 个用户对象。',
+      items: ['仅支持同一域内批量删除', '账号、组成员关系将被一并删除'], requireCheck: true,
+      confirmText: '删除 ' + ids.length + ' 个用户'
+    });
+    if (!yes) return;
+  }
+  const data = { action: act, ids: ids, confirm: '1' };
+  if (act === 'move') {
+    const tr = document.querySelector('#userTable tbody input:checked').closest('tr');
+    const opts = await ouOptions(tr.dataset.domain);
+    const m = ADM.formModal({
+      title: labels[act], body: '<label class="form-label">目标 OU</label><select class="form-select" name="target_ou">' + opts + '</select>',
+      onSubmit: async (form) => {
+        const r = await ADM.post('/users/batch', Object.assign({}, data, { target_ou: form.querySelector('[name=target_ou]').value }));
+        if (r.ok) setTimeout(() => location.reload(), 900);
+        return false;
+      }
+    });
+    return;
+  }
+  if (act === 'add_group') {
+    const tr = document.querySelector('#userTable tbody input:checked').closest('tr');
+    const options = await groupOptions(tr.dataset.domain);
+    if (!options) { ADM.warn('该域没有可用的用户组'); return; }
+    ADM.formModal({
+      title: labels[act], body: '<label class="form-label">选择用户组</label><select class="form-select" name="group_dn">' + options + '</select>',
+      onSubmit: async (form) => {
+        const r = await ADM.post('/users/batch', Object.assign({}, data, { group_dn: form.querySelector('[name=group_dn]').value }));
+        if (r.ok) setTimeout(() => location.reload(), 900);
+        return false;
+      }
+    });
+    return;
+  }
+  ADM.btnLoading(btn, true);
+  const r = await ADM.post('/users/batch', data);
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 900);
+}
+
+// ===== 列表区事件：委托绑定在 #userListBox 上（局部刷新替换 innerHTML 后依然有效）=====
+function bindUserListEvents() {
+  const box = document.getElementById('userListBox');
+  if (!box || box._bound) return;
+  box._bound = true;
+
+  // 全选 / 反选（change 委托）
+  box.addEventListener('change', (e) => {
+    const table = box.querySelector('#userTable');
+    if (!table) return;
+    const all = table.querySelector('thead input[type=checkbox]');
+    const boxes = () => [...table.querySelectorAll('tbody input[type=checkbox]')];
+    if (e.target.matches('thead input[type=checkbox]')) {
+      boxes().forEach(x => x.checked = e.target.checked);
+    } else if (e.target.matches('tbody input[type=checkbox]')) {
+      if (all) { all.checked = boxes().length > 0 && boxes().every(x => x.checked); all.indeterminate = !all.checked && boxes().some(x => x.checked); }
+    } else return;
+    const ids = boxes().filter(x => x.checked).map(x => x.value);
+    const bar = document.getElementById('batchBar');
+    if (bar) bar.style.display = ids.length ? 'flex' : 'none';
+    const sc = document.getElementById('selCount');
+    if (sc) sc.textContent = String(ids.length);
+  });
+
+  // 行内操作 + 批量按钮（click 委托）
+  box.addEventListener('click', async (e) => {
+    const rowBtn = e.target.closest('[data-row-act]');
+    if (rowBtn) { userRowAction(rowBtn.dataset.rowAct, rowBtn.closest('tr')); return; }
+    const batchBtn = e.target.closest('[data-batch]');
+    if (batchBtn) doBatch(batchBtn.dataset.batch, batchBtn);
+  });
+
+  // 右键菜单（contextmenu 委托）
+  box.addEventListener('contextmenu', (e) => {
+    const tr = e.target.closest('tr');
+    if (!tr || !tr.dataset.id) return;
+    e.preventDefault();
+    const enabled = tr.dataset.enabled === '1', locked = tr.dataset.locked === '1';
+    ADM.contextMenu([
+      { label: '查看详情', onClick: () => location.href = '/users/' + tr.dataset.id },
+      { label: '编辑', onClick: () => location.href = '/users/' + tr.dataset.id + '/edit' },
+      '-',
+      { label: enabled ? '禁用账号' : '启用账号', onClick: () => userRowAction('toggle', tr) },
+      { label: '解锁账号', disabled: !locked, onClick: () => userRowAction('unlock', tr) },
+      { label: '重置密码', onClick: () => userRowAction('reset', tr) },
+      '-',
+      { label: '移动到 OU', onClick: () => userRowAction('move', tr) },
+      { label: '加入 / 移出用户组', onClick: () => userRowAction('group', tr) },
+      {% if lic_features.offboard %}
+      '-',
+      { label: '离职处理', onClick: () => userRowAction('offboard', tr) },
+      {% endif %}
+      '-',
+      { label: '删除用户', danger: true, onClick: () => userRowAction('delete', tr) },
+    ], e.clientX, e.clientY);
+  });
+}
+bindUserListEvents();
+
+// 取消选择
+document.getElementById('btnClearSel').addEventListener('click', () => {
+  document.querySelectorAll('#userTable input[type=checkbox]').forEach(x => { x.checked = false; x.indeterminate = false; });
+  const bar = document.getElementById('batchBar');
+  if (bar) bar.style.display = 'none';
+  const sc = document.getElementById('selCount');
+  if (sc) sc.textContent = '0';
+});
+</script>
+{% endblock %}

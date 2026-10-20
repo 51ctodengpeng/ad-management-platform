@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PowerShell入门指南_排版_淡蓝科技(azure-tech) · 公众号排版预览</title>
+<style>
+  body{margin:0;background:#eef0f2;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;-webkit-text-size-adjust:100%;}
+  .gzh-toolbar{position:fixed;top:0;left:0;right:0;height:54px;background:#ffffff;box-shadow:0 1px 10px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:99;}
+  .gzh-hint{font-size:13px;color:#6b7280;line-height:1.4;}
+  .gzh-hint b{color:#111827;}
+  .gzh-copy{background:#059669;color:#fff;border:0;border-radius:9px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(5,150,105,.28);white-space:nowrap;transition:transform .08s,background .15s;}
+  .gzh-copy:hover{background:#047857;}
+  .gzh-copy:active{transform:translateY(1px);}
+  .gzh-toast{position:fixed;top:66px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:88vw;text-align:center;}
+  .gzh-toast.show{opacity:1;}
+  .gzh-stage{max-width:700px;margin:78px auto 64px;padding:0 8px;}
+  @media(max-width:520px){.gzh-hint{max-width:150px;}}
+</style>
+</head>
+<body>
+<div class="gzh-toolbar">
+  <span class="gzh-hint">👇 下方是排版效果 · 点右侧 <b>复制</b> 直接粘到公众号</span>
+  <button class="gzh-copy" id="gzhCopyBtn" onclick="gzhCopy()">📋 复制到公众号</button>
+</div>
+<div class="gzh-toast" id="gzhToast"></div>
+<div class="gzh-stage">
+  <div id="gzh-content">
+<section style="max-width:677px;margin:0 auto;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:#33475B;line-height:1.85;letter-spacing:0.4px;overflow-x:hidden;">
+
+  <!-- 封面卡 -->
+  <section style="margin:0 0 26px;padding:32px 24px 24px;border-radius:14px;background:linear-gradient(135deg,#071A33 0%,#0D3D7E 58%,#1257B8 100%);">
+    <p style="margin:0 0 14px;">
+      <span style="display:inline-block;border:1px solid rgba(157,199,255,0.45);color:#9DC7FF;font-size:10.5px;font-weight:600;letter-spacing:2px;padding:3px 10px;border-radius:4px;"><span leaf="">TECH GUIDE</span></span>
+    </p>
+    <p style="margin:0 0 10px;font-size:22px;font-weight:800;color:#FFFFFF;line-height:1.45;letter-spacing:0.5px;">
+      <span leaf="">PowerShell：把重复的运维工作，交给一行命令</span>
+    </p>
+    <p style="margin:0 0 20px;font-size:13px;color:#B7D3F5;line-height:1.8;">
+      <span leaf="">面向 IT 运维、开发者与想提升效率的你，讲清它到底能做什么、值不值得学、又该怎么上手。</span>
+    </p>
+    <section style="height:1px;background:linear-gradient(90deg,rgba(111,168,255,0.55),rgba(111,168,255,0));margin:0 0 14px;">
+      <span leaf=""><br></span>
+    </section>
+    <section style="display:flex;">
+      <section style="flex:1;margin-right:10px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">3 大问题</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">能做什么 / 为何学 / 怎么入门</span></p>
+      </section>
+      <section style="flex:1;margin-right:10px;border-left:1px solid rgba(143,182,228,0.25);padding-left:12px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">跨平台</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">Windows / Linux / macOS</span></p>
+      </section>
+      <section style="flex:1;border-left:1px solid rgba(143,182,228,0.25);padding-left:12px;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:800;color:#FFFFFF;font-family:'SF Mono',Consolas,Monaco,monospace;line-height:1.2;"><span leaf="">0 门槛</span></p>
+        <p style="margin:0;font-size:10.5px;color:#8FB6E4;letter-spacing:1px;"><span leaf="">系统自带，无需安装</span></p>
+      </section>
+    </section>
+  </section>
+
+  <!-- 引言卡 -->
+  <section style="margin:0 0 30px;padding:22px 22px 20px;background:#F2F7FF;border-left:3px solid #006EFF;border-radius:0 10px 10px 0;">
+    <p style="margin:0 0 12px;font-size:10px;color:#7C8DA6;letter-spacing:2.5px;font-weight:600;">
+      <span leaf="">QUOTE</span>
+    </p>
+    <p style="margin:0;font-size:17px;font-weight:700;color:#0E2038;line-height:1.75;letter-spacing:0.3px;">
+      <span leaf="">「很多人的日常工作，其实是一堆可以被脚本替掉的重复动作。PowerShell，就是帮你把这些动作写成命令的那把钥匙。」</span>
+    </p>
+  </section>
+
+  <!-- 前言 -->
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">提到 PowerShell，很多人的第一反应是「那个蓝色背景的命令行」。它看起来有点难，又好像离日常工作很远。但事实上，它是 </span>
+    <span style="background:linear-gradient(90deg,rgba(0,110,255,0.12),rgba(0,180,216,0.12));padding:1px 6px;border-radius:4px;font-weight:700;color:#0B4EBA;"><span leaf="">微软官方的自动化与配置管理框架</span></span>
+    <span leaf="">，既是一套命令行工具，也是一门完整的脚本语言，从 Windows 一路延伸到 Linux 和 macOS。</span>
+  </p>
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">它并不神秘。你每天在图形界面上点点点的那些操作，绝大多数都能在 PowerShell 里 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">用一行命令完成</span></span>
+    <span leaf="">，而且能反复执行、批量处理、记录结果。这篇文章不堆术语，就带你回答三个最实际的问题：它能做什么、为什么要学、以及怎么快速入门。</span>
+  </p>
+
+  <!-- 本篇看点 -->
+  <section style="margin:0 0 34px;">
+    <p style="margin:0 0 12px;font-size:10.5px;color:#006EFF;letter-spacing:2px;font-weight:700;">
+      <span leaf="">本篇看点</span>
+    </p>
+    <section style="display:flex;justify-content:space-between;">
+      <section style="flex:1;margin-right:9px;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">01</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">它能解决哪些实际问题</span></p>
+      </section>
+      <section style="flex:1;margin-right:9px;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">02</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">为什么值得花时间学</span></p>
+      </section>
+      <section style="flex:1;padding:14px 12px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:9px;">
+        <p style="margin:0 0 7px;font-size:11px;color:#006EFF;font-weight:700;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">03</span></p>
+        <p style="margin:0;font-size:12.5px;font-weight:700;color:#0E2038;line-height:1.55;"><span leaf="">三步快速入门上手</span></p>
+      </section>
+    </section>
+  </section>
+
+  <!-- 第一章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">01</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">WHAT IT SOLVES</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">PowerShell 能解决哪些实际问题</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">脱离具体场景谈工具，都容易变成空话。下面用几个 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">最常见的运维场景</span></span>
+    <span leaf="">，看看 PowerShell 到底能替你省下多少力气。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">批量管理用户与文件</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">比如你要给 100 个新员工建账号、分到对应部门组、设置统一的初始密码。用图形界面，你得重复点击上百次；而用 PowerShell，一条 </span>
+    <span style="background:#F1F6FD;color:#0B4EBA;padding:2px 6px;border-radius:4px;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13.5px;"><span leaf="">New-ADUser</span></span>
+    <span leaf=""> 配合一个循环就能全部搞定。文件处理同理——把某个目录下所有文件名里的日期统一改掉、把日志按天归档，都只需几行脚本。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">系统信息收集与巡检</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">想知道几十台服务器各自的内存、磁盘、正在运行的服务和最近重启时间？PowerShell 能 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">一次性拉取并汇总</span></span>
+    <span leaf="">，导出成 CSV 或 HTML 报告。很多企业用它做每日自动巡检，把「人工一台台看」变成「脚本跑一遍、只看异常」。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">定时任务与流程编排</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">备份、清理临时文件、同步数据、监控告警……这些 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">周期性动作</span></span>
+    <span leaf=""> 都可以写成脚本，交给 Windows 任务计划程序定时触发。你只需要在第一次把逻辑写对，之后它就能稳定地自己跑。</span>
+  </p>
+
+  <section style="margin:0 0 26px;padding:14px 18px;background:#F2F7FF;border-left:3px solid #006EFF;border-radius:0 8px 8px 0;">
+    <p style="margin:0 0 6px;">
+      <span style="display:inline-block;background:#006EFF;color:#FFFFFF;font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;letter-spacing:1px;"><span leaf="">说明</span></span>
+    </p>
+    <p style="margin:0;font-size:13.5px;color:#33475B;line-height:1.85;">
+      <span leaf="">一句话概括：只要一件事需要重复做、批量做、或跨多台机器做，PowerShell 几乎都能派上用场。它解决的不是「能不能」，而是「累不累」。</span>
+    </p>
+  </section>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第二章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">02</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">WHY LEARN IT</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">为什么要学习 PowerShell</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">「我现在用图形界面也挺顺手，为什么还要学命令行？」这是最常被问到的问题。答案是：</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">它们解决的是不同规模的问题</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">对比图形界面：从「点一次」到「跑一遍」</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">图形界面适合偶尔做一次、做完就忘的操作，直观但 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">难以复用和批量</span></span>
+    <span leaf="">。PowerShell 的价值恰恰在复用：一次写好的脚本可以存下来、反复跑、还能分享给同事。图形界面靠「人记住步骤」，脚本靠「文件固化流程」，后者的稳定性和可审计性都要高得多。</span>
+  </p>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">对比批处理（Batch）：更现代、更强大</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">老旧的 </span>
+    <span style="background:#F1F6FD;color:#0B4EBA;padding:2px 6px;border-radius:4px;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13.5px;"><span leaf="">.bat</span></span>
+    <span leaf=""> 批处理文件擅长简单串联命令，但处理字符串、调用系统 API、结构化输出都力不从心。PowerShell 是 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">面向对象的脚本语言</span></span>
+    <span leaf="">，输出的不是一行行文本，而是结构化的对象，可以直接排序、筛选、格式化，能力远在批处理之上。</span>
+  </p>
+
+  <section style="margin:0 0 26px;padding:20px 22px;border-radius:12px;background:linear-gradient(135deg,#0B2A55,#1257B8);">
+    <p style="margin:0;font-size:16px;font-weight:700;color:#FFFFFF;line-height:1.75;letter-spacing:0.4px;">
+      <span leaf="">「图形界面适合『偶尔用一次』，脚本适合『经常要用』。而运维工作里，绝大多数事情都属于后者。」</span>
+    </p>
+  </section>
+
+  <p style="margin:26px 0 12px;padding-left:11px;border-left:3px solid #006EFF;font-size:15px;font-weight:800;color:#0E2038;line-height:1.5;">
+    <span leaf="">它适合谁</span>
+  </p>
+
+  <section style="display:flex;margin:0 0 26px;">
+    <section style="flex:1;margin-right:8px;padding:13px 13px 15px;background:#F0FAF6;border-radius:10px;border-top:2px solid #0E9F6E;">
+      <p style="margin:0 0 7px;font-size:11px;font-weight:800;color:#0E6E4C;letter-spacing:1px;"><span leaf="">适合</span></p>
+      <p style="margin:0;font-size:12.5px;color:#2B6E58;line-height:1.8;"><span leaf="">IT 运维、系统管理员、测试、DevOps、想提升效率的开发者</span></p>
+    </section>
+    <section style="flex:1;padding:13px 13px 15px;background:#FBF2F2;border-radius:10px;border-top:2px solid #C05252;">
+      <p style="margin:0 0 7px;font-size:11px;font-weight:800;color:#9E3F3F;letter-spacing:1px;"><span leaf="">不急</span></p>
+      <p style="margin:0;font-size:12.5px;color:#7B4B4B;line-height:1.8;"><span leaf="">纯 Windows 普通用户、只做日常办公、无重复性系统操作</span></p>
+    </section>
+  </section>
+
+  <!-- 分割线 -->
+  <section style="margin:36px 0;">
+    <section style="height:1px;background:linear-gradient(90deg,rgba(0,110,255,0.35),rgba(0,110,255,0.04));">
+      <span leaf=""><br></span>
+    </section>
+  </section>
+
+  <!-- 第三章 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">03</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">GET STARTED</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">如何快速入门上手</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">入门不需要报班，也不需要先啃完整本书。跟着下面三步走，</span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">今天就能跑通第一条命令</span></span>
+    <span leaf="">。</span>
+  </p>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 01</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">打开它，先熟悉命令结构</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">Windows 系统自带，无需安装——在开始菜单搜索「PowerShell」即可打开。先记住一个规律：绝大多数命令都是 </span>
+      <span style="background:#F1F6FD;color:#0B4EBA;padding:2px 6px;border-radius:4px;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13.5px;"><span leaf="">动词-名词</span></span>
+      <span leaf=""> 结构，比如 Get 是「获取」、Set 是「设置」、New 是「新建」，后面接对象名。</span>
+    </p>
+  </section>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 02</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">跑通三个「查询型」命令</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">先从不改系统的安全命令练起，感受对象化输出的威力。比如查看进程、服务、磁盘信息，结果都能排序、筛选、导出。</span>
+    </p>
+  </section>
+
+  <!-- 代码块：入门示例 -->
+  <section style="margin:0 0 20px;border-radius:8px;overflow:hidden;background:#F6F8FA;border:1px solid #E5E7EB;border-left:3px solid #006EFF;">
+    <section style="padding:7px 14px;border-bottom:1px solid #E5E7EB;">
+      <span style="font-size:12px;color:#9CA3AF;font-family:Consolas,Monaco,monospace;letter-spacing:1px;"><span leaf="">powershell</span></span>
+    </section>
+    <section style="padding:11px 14px;">
+      <p style="margin:0;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.6;color:#24292F;"><span leaf="">Get-Process | Sort-Object CPU -Descending | Select-Object -First 5</span></p>
+      <p style="margin:0;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.6;color:#24292F;"><span leaf="">Get-Service | Where-Object { $_.Status -eq "Running" }</span></p>
+      <p style="margin:0;font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.6;color:#24292F;"><span leaf="">Get-PSDrive</span></p>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:13px;color:#7C8DA6;line-height:1.8;text-align:justify;">
+    <span leaf="">上面第一条命令：列出占用 CPU 最高的前 5 个进程。你可以把数字 5 改成任意值，立刻就能感受到「管道 + 筛选」的灵活。</span>
+  </p>
+
+  <section style="margin:0 0 20px;padding:14px 16px;background:#F8FBFF;border:1px solid #E3EEFB;border-radius:10px;">
+    <section style="display:flex;align-items:center;margin-bottom:8px;">
+      <span style="display:inline-block;background:#E8F1FE;color:#0B4EBA;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-family:'SF Mono',Consolas,Monaco,monospace;"><span leaf="">STEP 03</span></span>
+      <p style="margin:0 0 0 9px;font-size:14.5px;font-weight:800;color:#0E2038;"><span leaf="">带着真实需求去写</span></p>
+    </section>
+    <p style="margin:0;font-size:13.5px;color:#475C73;line-height:1.8;text-align:justify;">
+      <span leaf="">最好的学习是「解决手头的小问题」。给自己定一个小目标——比如「把下载文件夹里 30 天前的临时文件自动清掉」，然后去查、去写、去调试。配合官方文档和社区答案，边做边学，远比硬背命令快。</span>
+    </p>
+  </section>
+
+  <section style="margin:0 0 26px;padding:14px 18px;background:#FEF7EC;border-left:3px solid #C2760A;border-radius:0 8px 8px 0;">
+    <p style="margin:0 0 6px;">
+      <span style="display:inline-block;background:#C2760A;color:#FFFFFF;font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;letter-spacing:1px;"><span leaf="">注意</span></span>
+    </p>
+    <p style="margin:0;font-size:13.5px;color:#6B4A12;line-height:1.85;">
+      <span leaf="">涉及删除、批量修改等高危操作时，先在小范围或测试环境验证，务必加上确认逻辑和备份，别拿生产环境练手。</span>
+    </p>
+  </section>
+
+  <!-- 结语 -->
+  <section style="margin:0 0 22px;padding:0 0 13px;border-bottom:1px solid #E3EEFB;">
+    <section style="display:flex;align-items:flex-end;">
+      <p style="margin:0 12px 0 0;font-size:26px;font-weight:800;color:#006EFF;line-height:1;font-family:'SF Mono',Consolas,Monaco,monospace;letter-spacing:-1px;">
+        <span leaf="">∞</span>
+      </p>
+      <section style="flex:1;padding-bottom:1px;">
+        <p style="margin:0 0 3px;font-size:9.5px;color:#9AAEC4;letter-spacing:2.5px;font-weight:600;">
+          <span leaf="">THE END</span>
+        </p>
+        <h3 style="margin:0;font-size:19px;font-weight:800;color:#0E2038;line-height:1.4;letter-spacing:0.3px;">
+          <span leaf="">总结与学习建议</span>
+        </h3>
+      </section>
+    </section>
+  </section>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">回头看，PowerShell 并不复杂：它能 </span>
+    <span style="border-bottom:2px solid #9CC4FF;font-weight:600;color:#0E2038;"><span leaf="">把重复劳动变成可复用的脚本</span></span>
+    <span leaf="">，比图形界面更适合批量与自动化，比传统批处理更现代、更强大。它解决的不是某一个问题，而是「效率」这个长期命题。</span>
+  </p>
+
+  <p style="margin:0 0 20px;font-size:15px;line-height:1.85;text-align:justify;color:#33475B;letter-spacing:0.4px;">
+    <span leaf="">学习建议很简单：</span>
+    <strong style="color:#0E2038;"><span leaf="">先跑通、再上手、最后带着需求精进。</span></strong>
+    <span leaf="">不需要一次学全，今天能看懂一条命令、明天能写一个几行的小脚本，就已经走在前面了。真正的分水岭，从来不是「会不会」，而是「有没有开始」。</span>
+  </p>
+
+  <section style="margin:0 0 26px;padding:14px 18px;background:#F0FAF6;border-left:3px solid #0E9F6E;border-radius:0 8px 8px 0;">
+    <p style="margin:0;font-size:13.5px;color:#12654A;line-height:1.85;font-weight:600;">
+      <span leaf="">把一件要重复十次的事，用脚本做成「跑一次」。这就是 PowerShell 带给你最实在的回报。</span>
+    </p>
+  </section>
+
+  <!-- CTA -->
+  <section style="margin:0 0 28px;padding:26px 22px;border-radius:14px;background:linear-gradient(135deg,#EAF3FF,#F6FBFF);border:1px solid #D7E7FB;">
+    <p style="margin:0 0 10px;font-size:10px;color:#006EFF;letter-spacing:2px;font-weight:700;">
+      <span leaf="">TRY IT NOW</span>
+    </p>
+    <p style="margin:0 0 10px;font-size:17px;font-weight:800;color:#0E2038;line-height:1.6;">
+      <span leaf="">现在就打开 PowerShell，跑第一条命令</span>
+    </p>
+    <p style="margin:0 0 18px;font-size:13.5px;color:#475C73;line-height:1.85;">
+      <span leaf="">Windows 开始菜单搜索「PowerShell」，输入 Get-Process 试试看。有任何疑问，欢迎在评论区或私信交流。</span>
+    </p>
+    <p style="margin:0 0 12px;">
+      <span style="display:inline-block;background:#006EFF;color:#FFFFFF;font-size:13.5px;font-weight:700;padding:9px 22px;border-radius:8px;letter-spacing:1px;"><span leaf="">开始你的第一步</span></span>
+    </p>
+    <p style="margin:0;font-size:11.5px;color:#8FA3BC;line-height:1.7;">
+      <span leaf="">不需要安装任何东西，你的电脑里已经准备好了。</span>
+    </p>
+  </section>
+
+  <!-- END -->
+  <section style="text-align:center;margin:8px 0 30px;">
+    <section style="display:flex;align-items:center;justify-content:center;">
+      <span style="display:inline-block;height:1px;width:42px;background:#DCE8F8;margin-right:12px;"><span leaf=""><br></span></span>
+      <span style="font-size:10px;color:#9AAEC4;letter-spacing:4px;font-weight:600;"><span leaf="">END</span></span>
+      <span style="display:inline-block;height:1px;width:42px;background:#DCE8F8;margin-left:12px;"><span leaf=""><br></span></span>
+    </section>
+  </section>
+
+  <!-- 作者签名 -->
+  <section style="padding:20px 0 10px;border-top:1px solid #E9F1FB;">
+    <p style="margin:0 0 12px;font-size:14.5px;line-height:1.85;color:#33475B;text-align:justify;">
+      <span leaf="">我是 {{作者名}}，{{一句话简介，如：长期关注 IT 运维与自动化}}，欢迎一起交流。</span>
+    </p>
+    <p style="margin:0;font-size:14.5px;line-height:1.85;color:#33475B;text-align:justify;">
+      <span leaf="">如果你觉得今天这篇有收获，欢迎</span>
+      <strong style="color:#0E2038;"><span leaf="">点赞、在看、转发</span></strong>
+      <span leaf="">三连，我们下篇见。</span>
+    </p>
+  </section>
+
+</section>
+  </div>
+</div>
+<script>
+  function gzhShowToast(msg){
+    var t=document.getElementById('gzhToast');
+    t.textContent=msg;t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer=setTimeout(function(){t.classList.remove('show');},2800);
+  }
+  function gzhCopy(){
+    var el=document.getElementById('gzh-content');
+    // 选中渲染后的富文本节点并复制（等价于手动 Ctrl+A / Ctrl+C，保留全部样式）
+    var range=document.createRange();
+    range.selectNodeContents(el);
+    var sel=window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    var ok=false;
+    try{ok=document.execCommand('copy');}catch(e){ok=false;}
+    sel.removeAllRanges();
+    var btn=document.getElementById('gzhCopyBtn');
+    if(ok){
+      gzhShowToast('✅ 已复制！去公众号编辑器按 Ctrl/⌘+V 粘贴即可');
+      var old=btn.textContent;btn.textContent='✅ 已复制';
+      setTimeout(function(){btn.textContent=old;},2200);
+    }else{
+      gzhShowToast('⚠ 自动复制失败，请手动全选(Ctrl/⌘+A)再复制(Ctrl/⌘+C)');
+    }
+  }
+</script>
+</body>
+</html>

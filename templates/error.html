@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}{{ code }} · {{ app_name }}{% endblock %}
+{% block page_title %}操作未完成{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body empty-state" style="padding:64px 20px">
+    <div style="font-size:44px;font-weight:700;color:#cbd5e1;line-height:1">{{ code }}</div>
+    <div class="mt-3" style="font-size:14px;color:#344054">{{ message }}</div>
+    <div class="mt-4">
+      <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary btn-sm">返回仪表盘</a>
+      <a href="javascript:history.back()" class="btn btn-light btn-sm">返回上一页</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}邮箱告警通知 · {{ app_name }}{% endblock %}
+{% block page_title %}邮箱告警通知{% endblock %}
+{% block page_sub %}通过 SMTP 发送告警邮件{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">{{ ic.icon('mail') }} 邮箱告警通知</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="section-title">SMTP 服务器</div>
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="mailEnabled" {{ 'checked' if alert_cfg.smtp.enabled }}>
+          <label class="form-check-label" for="mailEnabled">启用邮件告警</label>
+        </div>
+        <div class="row g-2">
+          <div class="col-8"><label class="form-label">SMTP 主机</label>
+            <input class="form-control" id="mailHost" value="{{ alert_cfg.smtp.host }}" placeholder="smtp.example.com"></div>
+          <div class="col-4"><label class="form-label">端口</label>
+            <input class="form-control" type="number" id="mailPort" value="{{ alert_cfg.smtp.port }}"></div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-6"><label class="form-label">安全协议</label>
+            <select class="form-select" id="mailSecurity">
+              <option value="ssl" {{ 'selected' if alert_cfg.smtp.security == 'ssl' }}>SSL（465）</option>
+              <option value="tls" {{ 'selected' if alert_cfg.smtp.security == 'tls' }}>STARTTLS（587）</option>
+              <option value="none" {{ 'selected' if alert_cfg.smtp.security == 'none' }}>无加密（25）</option>
+            </select></div>
+          <div class="col-6"><label class="form-label">发件邮箱</label>
+            <input class="form-control" id="mailSender" value="{{ alert_cfg.smtp.sender }}" placeholder="ops@company.com"></div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-6"><label class="form-label">登录账号</label>
+            <input class="form-control" id="mailUsername" value="{{ alert_cfg.smtp.username }}" placeholder="留空 = 同发件邮箱"></div>
+          <div class="col-6"><label class="form-label">密码 / 授权码</label>
+            <input class="form-control" type="password" id="mailPassword"
+                   placeholder="{{ '已保存（留空不修改）' if alert_cfg.smtp.password_set else 'SMTP 密码或授权码' }}"></div>
+        </div>
+        <label class="form-label mt-1">收件人列表</label>
+        <input class="form-control" id="mailRecipients" value="{{ alert_cfg.smtp.recipients }}"
+               placeholder="a@x.com; b@y.com（分号或逗号分隔，多个收件人）">
+        <div class="help-text mt-1">密码加密存储、不回显；测试邮件无需开启总开关，填写主机/发件人/收件人即可发送。</div>
+      </div>
+      <div class="col-lg-6">
+        <div class="section-title">告警策略（勾选启用）</div>
+        <div id="policyList">
+          {% for p in alert_cfg.policies %}
+          <div class="policy-item" data-key="{{ p.key }}">
+            <div class="d-flex align-items-start gap-2">
+              <div class="form-check form-switch mt-0">
+                <input class="form-check-input" type="checkbox" id="pol_{{ p.key }}" {{ 'checked' if alert_cfg.state[p.key].enabled }}>
+              </div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold" style="font-size:13px">{{ p.name }}
+                  {% if p.threshold %}
+                  <span class="help-text fw-normal">阈值</span>
+                  <input class="form-control form-control-sm d-inline-block" style="width:68px" type="number"
+                         id="thr_{{ p.key }}" value="{{ alert_cfg.state[p.key].threshold }}">
+                  <span class="help-text fw-normal">{% if p.key == 'login_failures' %}次 / 10 分钟{% elif p.key == 'pwd_expiring' %}个 / 14 天{% else %}%{% endif %}</span>
+                  {% endif %}
+                </div>
+                <div class="help-text" style="font-size:11.5px">{{ p.desc }}</div>
+                <div class="help-text" style="font-size:11.5px">建议频率：{{ p.frequency }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button class="btn btn-sm btn-primary" id="btnSaveAlert">{{ ic.icon('save', 14) }} 保存配置</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnTestAlert">{{ ic.icon('send', 14) }} 发送测试邮件</button>
+      <span class="help-text ms-auto align-self-center" id="alertMsg"></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function collectAlertForm() {
+  const data = {
+    mail_enabled: document.getElementById('mailEnabled').checked ? '1' : '0',
+    mail_host: document.getElementById('mailHost').value.trim(),
+    mail_port: document.getElementById('mailPort').value.trim(),
+    mail_security: document.getElementById('mailSecurity').value,
+    mail_username: document.getElementById('mailUsername').value.trim(),
+    mail_sender: document.getElementById('mailSender').value.trim(),
+    mail_password: document.getElementById('mailPassword').value,
+    mail_recipients: document.getElementById('mailRecipients').value.trim(),
+  };
+  document.querySelectorAll('#policyList .policy-item').forEach(item => {
+    const key = item.dataset.key;
+    data['policy_' + key + '_enabled'] = item.querySelector('input[type=checkbox]').checked ? '1' : '0';
+    const thr = item.querySelector('input[type=number]');
+    if (thr) data['policy_' + key + '_threshold'] = thr.value.trim();
+  });
+  return data;
+}
+
+document.getElementById('btnSaveAlert').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  ADM.btnLoading(btn, true, '保存中…');
+  const r = await ADM.post('/config/alert/save', collectAlertForm(), { silent: true });
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 800);
+});
+
+document.getElementById('btnTestAlert').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const recipients = document.getElementById('mailRecipients').value.trim();
+  ADM.btnLoading(btn, true, '发送中…');
+  const r = await ADM.post('/config/alert/test', { recipients: recipients }, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (r.ok) ADM.ok(r.message || '测试邮件已发送');
+});
+</script>
+{% endblock %}

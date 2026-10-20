@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}告警中心 · {{ app_name }}{% endblock %}
+{% block page_title %}告警中心{% endblock %}
+{% block page_sub %}集中展示需要运维处理的异常项（全部读缓存，供日常巡检参考）{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-3 col-md-6">
+    <div class="card text-center py-3"><div class="metric-value text-danger">{{ locked|length }}</div>
+      <div class="metric-label">锁定账号</div></div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="card text-center py-3"><div class="metric-value text-warning">{{ pwd_soon|length }}</div>
+      <div class="metric-label">密码 14 天内到期</div></div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="card text-center py-3"><div class="metric-value text-danger">{{ pwd_expired|length }}</div>
+      <div class="metric-label">密码已过期</div></div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="card text-center py-3"><div class="metric-value text-muted">{{ idle_computers|length }}</div>
+      <div class="metric-label">长期离线设备（≥30 天）</div></div>
+  </div>
+</div>
+
+{% if offline_domains %}
+<div class="card mt-3">
+  <div class="card-header">{{ ic.icon('server') }} 域异常（{{ offline_domains|length }}）</div>
+  <div class="card-body">
+    {% for d in offline_domains %}
+    <div class="d-flex align-items-center gap-2 py-1">
+      <span class="badge-soft {{ 'gray' if not d.enabled else 'red' }}">{{ '已停用' if not d.enabled else '离线·只读' }}</span>
+      <span class="fw-semibold">{{ d.name }}（{{ d.domain_name }}）</span>
+      <span class="help-text text-truncate">{{ d.status_msg }}</span>
+      <a class="btn btn-sm btn-light border ms-auto" href="{{ url_for('domain.edit', domain_id=d.id) }}">处理</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('lock') }} 锁定账号（{{ locked|length }}）</div>
+      <div class="card-body p-0">
+        {% if locked %}
+        <table class="table table-sm mb-0"><thead><tr><th>账号</th><th>显示名</th><th>域</th><th></th></tr></thead>
+          <tbody>{% for u in locked %}
+          <tr><td>{{ u['sam_account_name'] }}</td><td>{{ u['display_name'] }}</td>
+            <td class="help-text">{{ dm[u['domain_id']].domain_name if u['domain_id'] in dm else '' }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-light border" href="{{ url_for('users.detail', uid=u['id']) }}">处理</a></td></tr>
+          {% endfor %}</tbody></table>
+        {% else %}<div class="empty-state py-4">暂无锁定账号</div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('clock') }} 密码到期风险（{{ pwd_expired|length + pwd_soon|length }}）</div>
+      <div class="card-body p-0">
+        {% if pwd_expired or pwd_soon %}
+        <table class="table table-sm mb-0"><thead><tr><th>账号</th><th>到期时间</th><th>状态</th><th></th></tr></thead>
+          <tbody>
+          {% for u in pwd_expired %}
+          <tr><td>{{ u['sam_account_name'] }}</td><td class="mono">{{ u['pwd_expires_at'][:16] }}</td>
+            <td><span class="badge-soft red">已过期</span></td>
+            <td class="text-end"><a class="btn btn-sm btn-light border" href="{{ url_for('users.detail', uid=u['id']) }}">处理</a></td></tr>
+          {% endfor %}
+          {% for u in pwd_soon %}
+          <tr><td>{{ u['sam_account_name'] }}</td><td class="mono">{{ u['pwd_expires_at'][:16] }}</td>
+            <td><span class="badge-soft amber">即将到期</span></td>
+            <td class="text-end"><a class="btn btn-sm btn-light border" href="{{ url_for('users.detail', uid=u['id']) }}">处理</a></td></tr>
+          {% endfor %}
+          </tbody></table>
+        {% else %}<div class="empty-state py-4">暂无密码到期风险</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">{{ ic.icon('monitor') }} 长期离线设备（≥30 天未登录，{{ idle_computers|length }}）</div>
+  <div class="card-body p-0">
+    {% if idle_computers %}
+    <table class="table table-sm mb-0"><thead><tr><th>计算机名</th><th>域</th><th>最后登录</th></tr></thead>
+      <tbody>{% for c in idle_computers %}
+      <tr><td>{{ c['name'] }}$</td><td class="help-text">{{ dm[c['domain_id']].domain_name if c['domain_id'] in dm else '' }}</td>
+        <td class="help-text">{{ c['last_logon'] or '从未' }}</td></tr>
+      {% endfor %}</tbody></table>
+    {% else %}<div class="empty-state py-4">暂无长期离线设备</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

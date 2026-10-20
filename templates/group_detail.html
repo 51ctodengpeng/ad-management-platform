@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}{{ g['name'] }} · 用户组{% endblock %}
+{% block page_title %}{{ g['name'] }}{% endblock %}
+{% block page_sub %}{{ d.name }}（{{ d.domain_name }}）· 成员关系实时读取域控
+{% if d.status == 'offline' %}<span class="badge-soft red">离线 · 只读</span>{% endif %}{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-light border" href="{{ url_for('groups.index', domain_id=d.id) }}">{{ ic.icon('arrow-left', 15) }} 返回列表</a>
+{% if d.status != 'offline' and d.enabled %}
+<button class="btn btn-sm btn-primary" id="btnAddMember">{{ ic.icon('plus', 15) }} 添加成员</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('group') }} 组信息</div>
+      <div class="card-body">
+        <div class="d-flex gap-2 mb-3">
+          <span class="badge-soft blue">{{ g['scope'] }}</span>
+          <span class="badge-soft {{ 'green' if g['category'] == 'Security' else 'gray' }}">{{ g['category'] }}</span>
+          <span class="badge-soft gray">缓存成员数 {{ g['member_count'] }}</span>
+        </div>
+        <div class="kv">
+          <dt>组名</dt><dd>{{ g['name'] }}</dd>
+          <dt>登录名</dt><dd class="mono">{{ g['sam_account_name'] }}</dd>
+          <dt>邮件</dt><dd>{{ g['mail'] or '—' }}</dd>
+          <dt>描述</dt><dd>{{ g['description'] or '—' }}</dd>
+          <dt>所属 OU</dt><dd class="mono" style="font-size:11.5px">{{ g['ou_dn'] or '—' }}</dd>
+          <dt>DN</dt><dd class="mono" style="font-size:11.5px">{{ g['dn'] }}</dd>
+          <dt>同步时间</dt><dd>{{ g['synced_at'] or '—' }}</dd>
+        </div>
+      </div>
+      <div class="card-body d-flex gap-2" style="border-top:1px solid var(--adm-border)">
+        <button class="btn btn-sm btn-outline-secondary" id="btnEditGroup" {{ 'disabled' if d.status == 'offline' }}>编辑描述/邮件</button>
+        <button class="btn btn-sm btn-outline-danger ms-auto" id="btnDeleteGroup"
+                {{ 'disabled' if d.status == 'offline' or is_protected }}>删除组</button>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('info') }} 作用域说明</div>
+      <div class="card-body help-text" style="line-height:1.9">
+        <b>全局（Global）</b>：可跨域授权，成员只能是本域账号，最常用于按部门/角色授权。<br>
+        <b>本地域（DomainLocal）</b>：只能在本域授权，成员可来自任意信任域，适合资源访问控制。<br>
+        <b>通用（Universal）</b>：可跨域授权且成员可跨域，要求域功能级别 2003 以上，建议用于跨域角色组。<br>
+        <b>通讯组</b>：仅用于邮件分发，不能用于权限授权。
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('users') }} 组成员
+        <span class="badge-soft blue ms-2">{{ members|length }}</span>
+        <span class="ms-auto help-text">来源：AD 实时 member 属性</span>
+      </div>
+      {% if err %}
+      <div class="card-body"><div class="alert alert-warning mb-0" style="font-size:13px">
+        {{ ic.icon('warn', 14) }} 读取组成员失败：{{ err }}
+        <div class="help-text mt-1">可能原因：域控不可达、绑定账号权限不足。域恢复后刷新即可。</div>
+      </div></div>
+      {% elif not members %}
+      <div class="empty-state">{{ ic.icon('users', 32) }}<div>该组暂无成员</div>
+        <div class="help-text mt-1">点击右上角「添加成员」从本域缓存用户中选择</div></div>
+      {% else %}
+      <div class="table-responsive">
+        <table class="table table-hover" id="memberTable">
+          <thead><tr>
+            <th style="width:34px"><input type="checkbox" class="form-check-input"></th>
+            <th>登录名</th><th>显示名称</th><th>部门</th><th>状态</th><th class="text-end">操作</th>
+          </tr></thead>
+          <tbody>
+          {% for m in members %}
+            <tr data-dn="{{ m['dn'] }}">
+              <td><input type="checkbox" class="form-check-input" value="{{ m['dn'] }}"></td>
+              <td><a class="text-decoration-none fw-semibold" href="{{ url_for('users.detail', uid=m['id']) }}">{{ m['sam_account_name'] }}</a></td>
+              <td>{{ m['display_name'] or '—' }}</td>
+              <td>{{ m['department'] or '—' }}</td>
+              <td>{% if m['enabled'] %}<span class="badge-soft green">启用</span>
+                  {% else %}<span class="badge-soft gray">禁用</span>{% endif %}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-light border" data-remove="{{ m['dn'] }}"
+                        {{ 'disabled' if d.status == 'offline' }}>移出</button>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body d-flex gap-2" style="border-top:1px solid var(--adm-border)">
+        <button class="btn btn-sm btn-outline-danger" id="btnRemoveSel" disabled>移出所选</button>
+        <span class="help-text align-self-center">只移除组成员关系，不会删除用户账号</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GID = {{ g['id'] }}, DOMAIN_ID = {{ d.id }}, GNAME = {{ g['name']|tojson }};
+const RO = {{ 'true' if (d.status == 'offline' or not d.enabled) else 'false' }};
+let memberDns = [{{ members | map(attribute='dn') | map('tojson') | join(',') | safe }}];
+
+ADM.initSelectAll('#memberTable', ids => {
+  const b = document.getElementById('btnRemoveSel');
+  if (b) b.disabled = ids.length === 0;
+});
+
+document.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', async () => {
+  const dn = btn.dataset.remove;
+  const r = await ADM.post('/groups/' + GID + '/members', { action: 'remove', member_dns: [dn] });
+  if (r.ok) setTimeout(() => location.reload(), 700);
+}));
+
+const btnRemove = document.getElementById('btnRemoveSel');
+btnRemove && btnRemove.addEventListener('click', async () => {
+  const dns = ADM.selectedIds('#memberTable');
+  if (!dns.length) return;
+  const yes = await ADM.confirmDanger({
+    title: '批量移出组成员', message: '将从组「' + GNAME + '」中移除所选成员，其通过该组继承的权限立即失效。',
+    items: ['成员数量：' + dns.length], confirmText: '移出 ' + dns.length + ' 个成员'
+  });
+  if (!yes) return;
+  const r = await ADM.post('/groups/' + GID + '/members', { action: 'remove', member_dns: dns });
+  if (r.ok) setTimeout(() => location.reload(), 800);
+});
+
+const btnAdd = document.getElementById('btnAddMember');
+btnAdd && btnAdd.addEventListener('click', async () => {
+  const r = await ADM.get('/groups/' + GID + '/candidates', { silent: true });
+  if (!r.ok) { ADM.err(r.message || '加载候选用户失败'); return; }
+  const users = r.data.filter(u => memberDns.indexOf(u.dn) < 0);
+  const rows = users.length
+    ? users.map(u => '<tr><td><input type="checkbox" class="form-check-input" value="' + ADM.esc(u.dn) + '"></td>' +
+        '<td>' + ADM.esc(u.sam_account_name) + '</td><td>' + ADM.esc(u.display_name || '—') + '</td>' +
+        '<td class="help-text">' + ADM.esc(u.department || '—') + '</td></tr>').join('')
+    : '<tr><td colspan="4" class="text-center help-text py-3">本域缓存中没有可添加的用户</td></tr>';
+  ADM.formModal({
+    title: '添加成员 · ' + GNAME,
+    size: 'modal-lg',
+    body: '<div class="mb-2"><input class="form-control form-control-sm" id="kw" placeholder="按登录名/姓名过滤"></div>' +
+          '<div style="max-height:44vh;overflow:auto"><table class="table table-sm" id="candTable">' +
+          '<thead><tr><th style="width:34px"><input type="checkbox" class="form-check-input" id="candAll"></th>' +
+          '<th>登录名</th><th>显示名称</th><th>部门</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+          '<div class="help-text mt-2">仅列出本域缓存中尚未加入该组的用户（最多 300 条），可先用关键词过滤。</div>',
+    okText: '添加所选',
+    onSubmit: async () => {
+      const dns = Array.from(document.querySelectorAll('#candTable tbody input:checked')).map(x => x.value);
+      if (!dns.length) { ADM.warn('请选择要添加的成员'); return false; }
+      const resp = await ADM.post('/groups/' + GID + '/members', { action: 'add', member_dns: dns });
+      if (resp.ok) setTimeout(() => location.reload(), 800);
+      return false;
+    }
+  });
+  const modalEl = document.querySelector('.modal.show');
+  const all = modalEl.querySelector('#candAll');
+  all.onchange = () => modalEl.querySelectorAll('#candTable tbody input').forEach(x => { x.checked = all.checked; });
+  const kw = modalEl.querySelector('#kw');
+  kw.oninput = () => {
+    const k = kw.value.toLowerCase();
+    modalEl.querySelectorAll('#candTable tbody tr').forEach(tr => {
+      tr.style.display = tr.textContent.toLowerCase().indexOf(k) >= 0 ? '' : 'none';
+    });
+  };
+});
+
+document.getElementById('btnEditGroup') && document.getElementById('btnEditGroup').addEventListener('click', () => {
+  ADM.formModal({
+    title: '编辑用户组 · ' + GNAME,
+    body: '<div class="mb-3"><label class="form-label">邮件地址</label>' +
+          '<input class="form-control" name="mail" value="' + ADM.esc({{ (g['mail'] or '')|tojson }}) + '"></div>' +
+          '<div><label class="form-label">描述</label>' +
+          '<input class="form-control" name="description" value="' + ADM.esc({{ (g['description'] or '')|tojson }}) + '"></div>' +
+          '<div class="form-text mt-2">组名与作用域创建后不可修改（需删除重建）</div>',
+    onSubmit: async (form) => {
+      const r = await ADM.post('/groups/' + GID + '/update', ADM.formData(form));
+      if (r.ok) setTimeout(() => location.reload(), 700);
+      return false;
+    }
+  });
+});
+
+document.getElementById('btnDeleteGroup') && document.getElementById('btnDeleteGroup').addEventListener('click', async () => {
+  const yes = await ADM.confirmDanger({
+    title: '删除用户组（不可恢复）',
+    message: '将从 AD 中删除该组对象，组内成员账号不受影响，但通过该组继承的权限立即失效。',
+    items: ['组：' + GNAME, '当前成员数：' + memberDns.length],
+    requireInput: GNAME, inputHint: '请输入组名「' + GNAME + '」以确认', confirmText: '确认删除'
+  });
+  if (!yes) return;
+  const r = await ADM.post('/groups/' + GID + '/delete', { confirm: '1' });
+  if (r.ok) setTimeout(() => { location.href = '/groups/?domain_id=' + DOMAIN_ID; }, 800);
+});
+</script>
+{% endblock %}

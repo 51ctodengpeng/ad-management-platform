@@ -1,0 +1,51 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# ---- 构建产物 / 安装包 ----
+build/
+dist/
+output/
+deploy/output/
+*.spec.bak
+*.exe
+*.msi
+deploy/nssm.exe
+
+# ---- 运行时数据与密钥（严禁入库）----
+logs/
+*.log
+database/*.db
+database/*.db-shm
+database/*.db-wal
+database/backups/
+database/.flask_secret
+database/.secret.key
+database/.secret.key.bak
+*.secret
+*.key
+*.pem
+*.pfx
+.env
+.env.*
+!.env.example
+
+# ---- 临时文件 ----
+tmp/
+temp/
+*.tmp
+*.bak
+~$*
+
+# ---- IDE / 系统 ----
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

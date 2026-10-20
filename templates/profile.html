@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}个人信息 · {{ app_name }}{% endblock %}
+{% block page_title %}个人信息与安全{% endblock %}
+{% block page_sub %}本系统登录账号（与 AD 域账号无关）· 会话 {{ session_timeout }} 分钟无操作自动退出{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="avatar-lg">{{ (u['display_name'] or u['username'])[0] | upper }}</div>
+          <div>
+            <div class="h5 mb-1">{{ u['display_name'] or u['username'] }}</div>
+            <div class="text-muted" style="font-size:13px">{{ u['username'] }}</div>
+            <span class="badge-soft {{ 'purple' if u['role'] == 'super_admin' else 'gray' }} mt-1">
+              {{ role_names.get(u['role'], u['role']) }}</span>
+          </div>
+        </div>
+        <div class="kv">
+          <dt>账号状态</dt><dd>{% if u['status'] %}<span class="badge-soft green">启用</span>{% else %}<span class="badge-soft gray">停用</span>{% endif %}</dd>
+          <dt>最后登录</dt><dd>{{ u['last_login_at'] or '—' }}</dd>
+          <dt>登录 IP</dt><dd class="mono">{{ u['last_login_ip'] or '—' }}</dd>
+          <dt>创建时间</dt><dd>{{ u['created_at'] or '—' }}</dd>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('shield') }} 权限范围</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9">
+        {% if u['role'] == 'super_admin' %}
+        <b>超级管理员</b>：全部功能，包括多域配置、林间信任、系统账号管理与日志归档维护。
+        {% else %}
+        <b>普通运维</b>：AD 日常运维（用户 / OU / 用户组 / 计算机 / 同步 / 日志查询导出）。
+        无法修改域配置、创建信任、管理运维账号或执行日志归档。
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('key') }} 修改登录密码</div>
+      <form class="card-body" id="pwdForm">
+        <div class="mb-3">
+          <label class="form-label">当前密码 <span class="text-danger">*</span></label>
+          <input class="form-control" type="password" name="old_password" autocomplete="current-password" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">新密码 <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <input class="form-control" type="password" name="new_password" id="newPwd"
+                   autocomplete="new-password" required>
+            <button class="btn btn-outline-secondary" type="button" id="btnGen">随机生成</button>
+            <button class="btn btn-outline-secondary" type="button"
+                    onclick="ADM.togglePwd('newPwd', this)">显示</button>
+          </div>
+          <div class="form-text">系统账号密码至少 8 位，建议包含大小写字母、数字与符号的组合</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">确认新密码 <span class="text-danger">*</span></label>
+          <input class="form-control" type="password" name="new_password2" autocomplete="new-password" required>
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">{{ ic.icon('save', 15) }} 保存并重新登录</button>
+        <span class="help-text ms-2">修改后当前会话将失效，需使用新密码重新登录</span>
+      </form>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('info') }} 安全提示</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9">
+        · 本系统账号拥有 AD 域写入权限，请勿与其他系统共用密码；<br>
+        · 连续 5 次登录失败将锁定该账号 5 分钟；<br>
+        · 所有 AD 变更操作都会记录操作人、来源 IP 与时间，可在「日志审计」中追溯；<br>
+        · 浏览器长时间未操作会自动退出，公共终端上请主动点击右上角退出。
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnGen').onclick = () => {
+  const p = ADM.randomPassword(14);
+  document.querySelector('[name=new_password]').value = p;
+  document.querySelector('[name=new_password2]').value = p;
+  document.getElementById('newPwd').type = 'text';
+  ADM.ok('已生成随机密码，请记录后再保存');
+};
+
+document.getElementById('pwdForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = ADM.formData(form);
+  if (data.new_password !== data.new_password2) { ADM.err('两次输入的新密码不一致'); return; }
+  const btn = form.querySelector('[type=submit]');
+  ADM.btnLoading(btn, true, '保存中…');
+  const r = await ADM.post('/api/profile/password', data, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '修改失败'); return; }
+  ADM.ok('密码已修改，请使用新密码重新登录');
+  setTimeout(() => { location.href = '/login'; }, 1200);
+});
+</script>
+{% endblock %}

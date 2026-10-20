@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}回收站 · {{ app_name }}{% endblock %}
+{% block page_title %}回收站{% endblock %}
+{% block page_sub %}删除的对象会先进入回收站，30 天内可还原；到期自动永久删除{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-sm btn-outline-danger" id="btnPurgeAll">{{ ic.icon('trash', 15) }} 清空回收站</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>类型</th><th>名称</th><th>DN</th><th>删除人</th><th>删除时间</th><th style="width:180px">操作</th></tr>
+      </thead>
+      <tbody>
+      {% for it in items %}
+        <tr data-id="{{ it['id'] }}" data-type="{{ it['entity_type'] }}" data-name="{{ it['name'] }}">
+          <td><span class="badge-soft gray">{{ it['entity_label'] }}</span></td>
+          <td class="fw-semibold">{{ it['name'] }}</td>
+          <td class="mono help-text" style="font-size:11.5px">{{ it['dn'] }}</td>
+          <td class="help-text">{{ it['deleted_by'] or '—' }}</td>
+          <td class="help-text">{{ it['deleted_at'] }}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-light border" data-act="restore">还原</button>
+              <button class="btn btn-light border text-danger" data-act="purge">永久删除</button>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6"><div class="empty-state py-5">{{ ic.icon('trash', 34) }}<div>回收站为空</div></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  const tr = btn.closest('tr');
+  const id = tr.dataset.id, type = tr.dataset.type, name = tr.dataset.name;
+  if (btn.dataset.act === 'purge') {
+    const yes = await ADM.confirmDanger({
+      title: '永久删除', message: '将从回收站永久删除，无法再还原。',
+      items: [name + '（' + type + '）'], requireInput: name, inputHint: '请输入名称「' + name + '」以确认',
+      confirmText: '永久删除'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/recycle/' + id + '/purge', { confirm: '1' });
+    if (r.ok) location.reload();
+    return;
+  }
+  // 还原
+  const needPwd = type === 'user';
+  ADM.formModal({
+    title: '还原 ' + name,
+    body: (needPwd ? '<div class="alert alert-warning py-2" style="font-size:12px">用户密码无法从快照恢复，请设置新密码。</div>' +
+              '<label class="form-label">新密码</label><input class="form-control" name="new_password" value="' + ADM.randomPassword(14) + '">' : '') +
+          '<label class="form-label mt-2">同名冲突处理</label>' +
+          '<select class="form-select" name="mode">' +
+          '<option value="rename">自动重命名（加序号后缀）</option>' +
+          '<option value="overwrite">覆盖现有同名对象（高危）</option>' +
+          '<option value="skip">跳过（保留在回收站）</option></select>',
+    okText: '还原',
+    onSubmit: async (form) => {
+      const r = await ADM.post('/recycle/' + id + '/restore', {
+        mode: form.querySelector('[name=mode]').value,
+        new_password: form.querySelector('[name=new_password]') ? form.querySelector('[name=new_password]').value : '',
+        confirm: '1'
+      });
+      if (r.ok) { setTimeout(() => location.reload(), 800); return true; }
+      return false;
+    }
+  });
+}));
+
+document.getElementById('btnPurgeAll').addEventListener('click', async () => {
+  const yes = await ADM.confirmDanger({
+    title: '清空回收站', message: '将永久删除回收站内全部记录，无法还原。',
+    requireInput: '清空', inputHint: '请输入「清空」以确认', confirmText: '清空'
+  });
+  if (!yes) return;
+  const r = await ADM.post('/recycle/purge-all', { confirm: '1' });
+  if (r.ok) location.reload();
+});
+</script>
+{% endblock %}

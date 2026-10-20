@@ -1,0 +1,84 @@
+{% import 'partials/icons.html' as ic %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · {{ app_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d4ed8'/><text x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>AD</text></svg>">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-side">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="adm-brand-logo" style="width:38px;height:38px;font-size:17px">AD</div>
+        <div>
+          <h1>AD 域控管理系统</h1>
+          <div style="font-size:11.5px;color:#93a5c8">Multi-Forest Directory Administration</div>
+        </div>
+      </div>
+      <p>面向多 AD 域 / 多林的企业级运维控制台。所有变更直连域控执行，查询与统计读取本地缓存，单一域故障不影响其他域。</p>
+      <div style="display:flex;flex-direction:column;gap:11px;margin-top:6px">
+        <div class="login-feature">{{ ic.icon('shield', 15) }}<span>写直连 AD、读走缓存，杜绝缓存与域数据不一致</span></div>
+        <div class="login-feature">{{ ic.icon('refresh', 15) }}<span>15 分钟增量 + 每日全量 + 手动同步三重保障</span></div>
+        <div class="login-feature">{{ ic.icon('link', 15) }}<span>Web 一键建立林间信任，全程预检与审计</span></div>
+        <div class="login-feature">{{ ic.icon('users', 15) }}<span>用户 / OU / 组 / 计算机全量管理与 Excel 台账</span></div>
+      </div>
+    </div>
+    <div class="login-form">
+      <h2>运维登录</h2>
+      <p class="text-muted mb-4" style="font-size:12.5px">请使用系统运维账号登录（与 AD 域账号相互独立）</p>
+      <form id="loginForm" autocomplete="off">
+        <div class="mb-3">
+          <label class="form-label">用户名</label>
+          <input class="form-control form-control-lg" name="username" id="username" autocomplete="username"
+                 placeholder="系统运维账号" style="font-size:14px" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">密码</label>
+          <div class="input-group">
+            <input class="form-control form-control-lg" type="password" name="password" id="password"
+                   autocomplete="current-password" placeholder="登录密码" style="font-size:14px" required>
+            <button class="btn btn-outline-secondary" type="button" onclick="ADM.togglePwd('password', this)">显示</button>
+          </div>
+        </div>
+        <div id="loginErr" class="alert alert-danger py-2 px-3 mt-3 mb-0" style="font-size:12.5px;display:none"></div>
+        <button class="btn btn-primary btn-lg w-100 mt-4" type="submit" id="btnLogin" style="font-size:14px">
+          登 录
+        </button>
+        <div class="text-end mt-3">
+          <a href="{{ url_for('auth.forgot_password') }}" style="font-size:12.5px;color:#667085">忘记密码？</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="login-footer">
+    © 2026 <b>PowerShell 中文社区团队</b> 版权所有 ｜
+    <a href="https://www.powershell.com.cn" target="_blank" style="color:inherit">www.powershell.com.cn</a> ｜
+    <a href="mailto:dengpeng@powershell.com.cn" style="color:inherit">dengpeng@powershell.com.cn</a>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnLogin');
+  const errBox = document.getElementById('loginErr');
+  errBox.style.display = 'none';
+  ADM.btnLoading(btn, true, '登录中…');
+  const r = await ADM.post('/login', ADM.formData(this), { silent: true });
+  ADM.btnLoading(btn, false);
+  if (r && r.ok) {
+    window.location.href = (r.data && r.data.redirect) || '/dashboard';
+  } else {
+    errBox.textContent = (r && r.message) || '登录失败';
+    errBox.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>

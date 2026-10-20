@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}{{ '编辑域' if mode=='edit' else '新增域' }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ '编辑域配置' if mode=='edit' else '新增 AD 域' }}{% endblock %}
+{% block page_sub %}每个域独立连接配置、独立缓存、独立同步任务{% endblock %}
+
+{% block content %}
+{% if mode == 'edit' and d and d.status != 'online' %}
+<div class="alert alert-warning d-flex align-items-start gap-2" style="font-size:12.5px">
+  <span class="mt-1">{{ ic.icon('warn', 16) }}</span>
+  <div>
+    <b>该域当前状态：{{ d.status }}</b>
+    {% if d.status_msg %}<div class="mt-1">最近错误：{{ d.status_msg }}</div>{% endif %}
+    <div class="mt-1">
+      若域控管理员密码已变更，请在下表「管理员密码」处填写新密码 → 保存配置 → 点「测试连通性」。
+      保存后系统会自动作废旧连接并按新凭据重连；<b>缓存数据不受影响</b>，恢复后执行一次同步即可。
+    </div>
+  </div>
+</div>
+{% endif %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form id="domainForm" autocomplete="off">
+      <input type="hidden" name="id" value="{{ d.id if d else '' }}">
+      <div class="card">
+        <div class="card-header">{{ ic.icon('server') }} 连接参数</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">域名称 <span class="text-danger">*</span></label>
+              <input class="form-control" name="name" value="{{ d.name if d else '' }}"
+                     placeholder="便于识别的名称，如：总部生产域">
+              <div class="form-text">仅用于本系统展示与日志</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">AD 域名 <span class="text-danger">*</span></label>
+              <input class="form-control mono" name="domain_name" value="{{ d.domain_name if d else '' }}"
+                     placeholder="填写AD林根域名，如 corp.example.com">
+              <div class="form-text">FQDN 格式；用于拼接绑定账号与默认 DN</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">域控 IP / 主机名 <span class="text-danger">*</span></label>
+              <input class="form-control mono" name="dc_host" value="{{ d.dc_host if d else '' }}"
+                     placeholder="填写AD域控服务器IP地址">
+              <div class="form-text">建议填写 IP，避免 DNS 解析问题</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">NetBIOS 域名</label>
+              <input class="form-control mono" name="netbios_name" value="{{ d.netbios_name if d else '' }}"
+                     placeholder="可选，如 CORP（留空自动探测）">
+              <div class="form-text">NTLM 认证与 WinRM 连接会用到</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">管理员账号 <span class="text-danger">*</span></label>
+              <input class="form-control mono" name="username" value="{{ d.username if d else '' }}"
+                     placeholder="域管理员账号，如administrator">
+              <div class="form-text">需具备目标 OU 的读写权限（建议 Domain Admins）</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">管理员密码 {% if mode=='create' %}<span class="text-danger">*</span>{% endif %}</label>
+              <div class="input-group">
+                <input class="form-control" type="password" name="password" id="pwdField"
+                       placeholder="{{ '域管理员密码' if mode=='create' else '留空表示不修改密码' }}">
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="ADM.togglePwd('pwdField', this)">显示</button>
+              </div>
+              <div class="form-text">密码使用 Fernet 加密后存储于本地数据库</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">LDAP 端口</label>
+              <input class="form-control mono" name="ldap_port" type="number"
+                     value="{{ d.ldap_port if d else 389 }}" placeholder="非SSL默认389，SSL加密636">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">SSL 加密</label>
+              <select class="form-select" name="use_ssl" id="use_ssl">
+                <option value="0" {{ 'selected' if not d or not d.use_ssl }}>否（389 明文）</option>
+                <option value="1" {{ 'selected' if d and d.use_ssl }}>是（636 LDAPS）</option>
+              </select>
+              <div class="form-text">修改密码需加密通道；系统会自动回退 LDAPS</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">启用连接</label>
+              <select class="form-select" name="enabled">
+                <option value="1" {{ 'selected' if not d or d.enabled }}>启用</option>
+                <option value="0" {{ 'selected' if d and not d.enabled }}>停用（只读）</option>
+              </select>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">基准 DN（可选）</label>
+              <input class="form-control mono" name="base_dn" value="{{ d.base_dn if d else '' }}"
+                     placeholder="留空自动探测，如 DC=corp,DC=example,DC=com">
+              <div class="form-text">只同步该 DN 下的对象（多域单林的子域场景可指定）</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">域备注</label>
+              <input class="form-control" name="remark" value="{{ d.remark if d else '' }}"
+                     placeholder="标记域用途，生产域/测试调试域">
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white d-flex gap-2" style="border-top:1px solid var(--adm-border);padding:12px 16px">
+          <button class="btn btn-primary btn-sm" type="submit" id="btnSave">{{ ic.icon('save', 15) }} 保存配置</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="btnTest">{{ ic.icon('bolt', 15) }} 测试连通性</button>
+          <a class="btn btn-light btn-sm ms-auto" href="{{ url_for('domain.index') }}">返回列表</a>
+        </div>
+      </div>
+    </form>
+    <div id="testResult" class="mt-3"></div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if debug %}
+    <div class="card mb-3">
+      <div class="card-header">{{ ic.icon('info') }} 固定调试环境</div>
+      <div class="card-body">
+        <dl class="kv mb-2">
+          <dt>域控 IP</dt><dd class="mono">{{ debug.dc_host }}</dd>
+          <dt>域名</dt><dd class="mono">{{ debug.domain_name }}</dd>
+          <dt>管理员</dt><dd class="mono">{{ debug.username }}</dd>
+          <dt>密码</dt><dd class="mono">{{ debug.password }}</dd>
+          <dt>LDAP / SSL</dt><dd class="mono">389 / 636</dd>
+        </dl>
+        <button class="btn btn-sm btn-outline-primary w-100" type="button" id="btnFillDebug">一键填入调试环境</button>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-header">{{ ic.icon('warn') }} 录入前检查清单</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9;color:#475467">
+        <div>□ 域控 389（或 636）端口对服务器放通</div>
+        <div>□ 管理员账号可读取域根对象</div>
+        <div>□ 如需一键建立林间信任：域控放通 <code>5985</code>（WinRM）与 RPC 端口</div>
+        <div>□ 域控已启用 PowerShell 远程（<code>Enable-PSRemoting -Force</code>）</div>
+        <div>□ 修改用户密码：域控 636 可访问，或允许 STARTTLS</div>
+        <div class="mt-2 help-text">容量上限：最多 {{ max_domains }} 个域；单域 {{ max_users }} 用户</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DEBUG = {{ (debug or {})|tojson }};
+
+// SSL 开关与端口联动：切到 SSL 自动把默认 389 改成 636，切回明文则改回 389。
+// 仅当端口仍是"另一模式的默认值"时才自动切换，尊重用户填写的自定义端口。
+const portInput = document.querySelector('input[name="ldap_port"]');
+const sslSelect = document.getElementById('use_ssl');
+sslSelect.addEventListener('change', () => {
+  const cur = parseInt(portInput.value, 10) || 0;
+  if (sslSelect.value === '1' && cur === 389) portInput.value = 636;
+  else if (sslSelect.value === '0' && cur === 636) portInput.value = 389;
+});
+
+{% if debug %}
+document.getElementById('btnFillDebug').onclick = () => {
+  const f = document.getElementById('domainForm');
+  f.name.value = DEBUG.name + '（调试）';
+  f.domain_name.value = DEBUG.domain_name;
+  f.dc_host.value = DEBUG.dc_host;
+  f.netbios_name.value = DEBUG.netbios_name;
+  f.username.value = DEBUG.username;
+  f.ldap_port.value = DEBUG.ldap_port;
+  f.use_ssl.value = String(DEBUG.use_ssl);
+  f.remark.value = DEBUG.remark;
+  if (!f.id.value) f.password.value = DEBUG.password;
+  ADM.ok('已填入调试环境参数');
+};
+{% endif %}
+
+document.getElementById('domainForm').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSave');
+  ADM.btnLoading(btn, true);
+  const r = await ADM.post('/domains/save', ADM.formData(this));
+  ADM.btnLoading(btn, false);
+  if (r.ok) {
+    const id = r.data.id;
+    window.history.replaceState(null, '', '/domains/' + id + '/edit');
+    document.getElementById('domainForm').id.value = id;
+    // 保存后自动做一次连通性测试，让运维立刻看到状态
+    testDomain(id);
+    setTimeout(() => { if (!location.search.includes('stay')) location.href = '/domains/'; }, 2200);
+  }
+});
+
+async function testDomain(id) {
+  const box = document.getElementById('testResult');
+  box.innerHTML = '<div class="card"><div class="card-body text-muted">正在连接域控…</div></div>';
+  const r = await ADM.post('/domains/' + id + '/test', { deep: '0' }, { silent: true });
+  if (!r.ok) {
+    box.innerHTML = '<div class="card"><div class="card-body"><div class="alert alert-danger mb-0" style="font-size:13px">' +
+      ADM.esc(r.message || '测试失败') + '</div></div></div>';
+    return;
+  }
+  box.innerHTML = '<div class="card"><div class="card-header">测试结果</div><div class="card-body"><ul class="steps">' +
+    r.data.results.map(x => '<li><span class="' + (x.ok ? 'ok' : 'fail') + '">' + (x.ok ? '✓' : '✕') + '</span>' +
+      '<div><b>' + ADM.esc(x.name) + '</b><div class="help-text">' + ADM.esc(x.msg) + '</div></div></li>').join('') +
+    '</ul></div></div>';
+}
+document.getElementById('btnTest').onclick = async () => {
+  const f = document.getElementById('domainForm');
+  if (!f.id.value) {
+    ADM.warn('请先保存配置，再执行连通性测试');
+    return;
+  }
+  testDomain(f.id.value);
+};
+</script>
+{% endblock %}

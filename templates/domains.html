@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}多域管理 · {{ app_name }}{% endblock %}
+{% block page_title %}多域管理{% endblock %}
+{% block page_sub %}支持多个独立 AD 域/林 · 单域故障只读隔离 · 容量上限 {{ max_domains }} 个域 / 单域 {{ max_users }} 用户{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('domain.new') }}" class="btn btn-sm btn-primary">{{ ic.icon('plus', 15) }} 新增域</a>
+<button class="btn btn-sm btn-outline-primary" id="btnSyncAllInc">{{ ic.icon('refresh', 15) }} 批量增量同步</button>
+<button class="btn btn-sm btn-outline-secondary" id="btnSyncAllFull">{{ ic.icon('download', 15) }} 批量全量同步</button>
+<button class="btn btn-sm btn-outline-secondary" id="btnStatusAll">{{ ic.icon('server', 15) }} 检测状态</button>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-light alert-adm border d-flex gap-2 align-items-start mb-3">
+  {{ ic.icon('info', 15) }}
+  <div>
+    {% if debug_domain %}<b>调试环境已内置：</b>域控 <code>{{ debug_domain.dc_host }}</code> · 域 <code>{{ debug_domain.domain_name }}</code> · 账号 <code>{{ debug_domain.username }}</code>；{% endif %}
+    域离线时该域自动进入只读，所有写操作按钮禁用，其他域不受影响。
+  </div>
+</div>
+
+<div class="row g-3">
+{% for d in domains %}
+  <div class="col-xl-4 col-md-6">
+    <div class="domain-card {{ 'offline' if d.status=='offline' and d.enabled else '' }} {{ '' if d.enabled else 'off' }}"
+         data-domain="{{ d.id }}">
+      <div class="domain-head">
+        <span class="domain-name">{{ d.name }}</span>
+        {% if d.is_debug %}<span class="badge-soft amber">调试域</span>{% endif %}
+        {% if not d.enabled %}
+          <span class="badge-soft gray ms-auto"><span class="dot unk"></span>已停用</span>
+        {% elif d.status == 'online' %}
+          <span class="badge-soft green ms-auto" title="{{ d.status_msg }}"><span class="dot on"></span>在线</span>
+        {% elif d.status == 'offline' %}
+          <span class="badge-soft red ms-auto" title="{{ d.status_msg }}"><span class="dot off"></span>离线·只读</span>
+        {% else %}
+          <span class="badge-soft gray ms-auto"><span class="dot unk"></span>未检测</span>
+        {% endif %}
+      </div>
+      <div class="domain-fqdn">{{ d.domain_name }} · {{ d.dc_host }}:{{ d.ldap_port }}{% if d.use_ssl %} (SSL){% endif %}</div>
+      {% if d.status_msg %}
+      <div class="help-text text-truncate" title="{{ d.status_msg }}">{{ d.status_msg }}</div>
+      {% endif %}
+      {% if d.enabled and d.status != 'online' and ('认证失败' in (d.status_msg or '') or '密码' in (d.status_msg or '')) %}
+      <div class="alert alert-warning py-1 px-2 mb-0" style="font-size:11.5px">
+        管理员凭据可能已变更 ——
+        <a href="{{ url_for('domain.edit', domain_id=d.id) }}" class="fw-semibold">更新密码</a>
+        （缓存数据完好，无需重新同步）
+      </div>
+      {% endif %}
+      <div class="domain-metrics">
+        <div><b>{{ d.user_count }}</b>用户</div>
+        <div><b>{{ d.disabled_users }}</b>禁用</div>
+        <div><b>{{ d.ou_count }}</b>OU</div>
+        <div><b>{{ d.group_count }}</b>组</div>
+        <div><b>{{ d.computer_count }}</b>计算机</div>
+      </div>
+      <div class="help-text">
+        最后同步：{{ d.last_sync_at or '尚未同步' }}
+        {% if d.last_sync_type %}（{{ '全量' if d.last_sync_type=='full' else '增量' }}）{% endif %}
+        {% if d.forest_name %} · 林：{{ d.forest_name }}{% endif %}
+        {% if d.domain_mode %} · 功能级别：{{ d.domain_mode }}{% endif %}
+      </div>
+      {% if d.last_sync_msg %}
+      <div class="help-text text-truncate" title="{{ d.last_sync_msg }}">{{ d.last_sync_msg }}</div>
+      {% endif %}
+      <div class="domain-actions">
+        <button class="btn btn-sm btn-outline-primary" data-act="test">{{ ic.icon('bolt', 14) }} 测试</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="sync-incr">{{ ic.icon('refresh', 14) }} 增量同步</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="sync-full">{{ ic.icon('download', 14) }} 全量</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('domain.edit', domain_id=d.id) }}">{{ ic.icon('edit', 14) }} 编辑</a>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light border" data-bs-toggle="dropdown">更多</button>
+          <ul class="dropdown-menu dropdown-menu-end" style="font-size:13px">
+            <li><a class="dropdown-item" href="{{ url_for('users.index', domain_id=d.id) }}">查看用户</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('ou.index', domain_id=d.id) }}">查看 OU 树</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('groups.index', domain_id=d.id) }}">查看用户组</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('computers.index', domain_id=d.id) }}">查看计算机</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" data-act="toggle">{{ '停用域连接' if d.enabled else '启用域连接' }}</button></li>
+            {% if current_user['role'] == 'super_admin' %}
+            <li><button class="dropdown-item text-danger" data-act="delete">删除域配置</button></li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="col-12"><div class="card"><div class="card-body empty-state">
+    还没有配置 AD 域。点击右上角「新增域」添加。
+  </div></div></div>
+{% endfor %}
+</div>
+
+<!-- 连通性测试结果 -->
+<div class="modal fade" id="testModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">连通性测试</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="testBody"></div>
+      <div class="modal-footer">
+        <label class="me-auto help-text"><input type="checkbox" id="deepCheck"> 深度检测（含写权限探测：会临时创建并删除一个 OU）</label>
+        <button class="btn btn-light btn-sm" data-bs-dismiss="modal">关闭</button>
+        <button class="btn btn-primary btn-sm" id="btnRetest">重新测试</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TASK_LABELS = { sync_domain: '单域同步', sync_all: '全部域同步' };
+
+async function runTest(id) {
+  const deep = document.getElementById('deepCheck').checked ? '1' : '0';
+  const body = document.getElementById('testBody');
+  body.innerHTML = '<div class="text-muted">正在连接域控…</div>';
+  const r = await ADM.post('/domains/' + id + '/test', { deep: deep }, { silent: true });
+  if (!r.ok) { body.innerHTML = '<div class="alert alert-danger mb-0">' + ADM.esc(r.message) + '</div>'; return; }
+  body.innerHTML = '<ul class="steps">' + r.data.results.map(x =>
+    '<li><span class="' + (x.ok ? 'ok' : 'fail') + '">' + (x.ok ? '✓' : '✕') + '</span>' +
+    '<div><b>' + ADM.esc(x.name) + '</b><div class="help-text">' + ADM.esc(x.msg) + '</div></div></li>'
+  ).join('') + '</ul>';
+}
+
+document.querySelectorAll('.domain-card').forEach(card => {
+  const id = card.dataset.domain;
+  card.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'test') {
+      window._testId = id;
+      new bootstrap.Modal(document.getElementById('testModal')).show();
+      runTest(id);
+    } else if (act === 'sync-incr' || act === 'sync-full') {
+      const kind = act === 'sync-incr' ? 'incr' : 'full';
+      if (kind === 'full') {
+        const yes = await ADM.confirmDanger({
+          title: '触发全量同步',
+          message: '全量同步将重新拉取该域全部用户/OU/组/计算机，并清理缓存中已不存在的脏数据。',
+          items: ['该操作只读取 AD，不会修改域数据', '用户量大时耗时较长，期间不影响其他域的写入'],
+          confirmText: '开始全量同步'
+        });
+        if (!yes) return;
+      }
+      ADM.btnLoading(btn, true);
+      const r = await ADM.post('/domains/' + id + '/sync', { kind: kind, confirm: kind === 'full' ? '1' : '' });
+      ADM.btnLoading(btn, false);
+      if (r.ok) pollTask();
+    } else if (act === 'toggle') {
+      const enabled = card.querySelector('[data-act=toggle]').textContent.includes('启用') ? '1' : '0';
+      const yes = await ADM.confirmDanger({
+        title: enabled === '1' ? '启用域连接' : '停用域连接',
+        message: enabled === '1' ? '启用后将恢复该域的读写与定时同步。'
+          : '停用后该域进入只读：所有新增/修改/删除/重置密码操作都会被拒绝，定时同步停止。AD 域本身不受影响。',
+        requireCheck: true, confirmText: enabled === '1' ? '启用' : '停用'
+      });
+      if (!yes) return;
+      const r = await ADM.post('/domains/' + id + '/toggle', { enabled: enabled });
+      if (r.ok) setTimeout(() => location.reload(), 600);
+    } else if (act === 'delete') {
+      const yes = await ADM.confirmDanger({
+        title: '删除域配置',
+        message: '将从本系统删除该域的连接配置和全部本地缓存（用户/OU/组/计算机/信任）。',
+        items: ['AD 域本身与其中数据不会被删除',
+                '删除后该域不再同步，如需恢复请重新录入配置并执行全量同步'],
+        confirmText: '删除配置'
+      });
+      if (!yes) return;
+      const r = await ADM.post('/domains/' + id + '/delete', { confirm: '1' });
+      if (r.ok) setTimeout(() => location.reload(), 700);
+    }
+  });
+});
+
+document.getElementById('btnRetest').addEventListener('click', () => runTest(window._testId));
+
+async function syncAll(kind) {
+  if (kind === 'full') {
+    const yes = await ADM.confirmDanger({
+      title: '全部域全量同步',
+      message: '将逐个域执行全量同步（串行），单域失败不会中断其他域。',
+      confirmText: '开始'
+    });
+    if (!yes) return;
+  }
+  const r = await ADM.post('/domains/sync-all', { kind: kind, confirm: kind === 'full' ? '1' : '' });
+  if (r.ok) pollTask();
+}
+document.getElementById('btnSyncAllInc').onclick = () => syncAll('incr');
+document.getElementById('btnSyncAllFull').onclick = () => syncAll('full');
+document.getElementById('btnStatusAll').onclick = async function () {
+  ADM.btnLoading(this, true, '检测中…');
+  const r = await ADM.post('/domains/refresh-status', {});
+  ADM.btnLoading(this, false);
+  if (r.ok) setTimeout(() => location.reload(), 600);
+};
+
+let pollTimer = null;
+function pollTask() {
+  if (pollTimer) return;
+  ADM.toast('同步任务已提交，完成后将自动刷新页面', 'warning');
+  pollTimer = setInterval(async () => {
+    const r = await ADM.get('/domains/api/tasks', { silent: true });
+    if (r.ok && !r.data.running && r.data.pending === 0) {
+      clearInterval(pollTimer); pollTimer = null;
+      location.reload();
+    }
+  }, 3000);
+}
+
+// 域状态自动轮询：每 20 秒比对一次，仅在在线/离线状态变化时才刷新页面
+let _lastStatusSig = null;
+async function pollDomainStatus() {
+  const r = await ADM.get('/domains/api/status', { silent: true });
+  if (!r.ok) return;
+  const map = {};
+  (r.data.domains || []).forEach(d => { map[d.id] = d.status; });
+  const sig = JSON.stringify(map);
+  if (_lastStatusSig === null) { _lastStatusSig = sig; return; }
+  if (sig !== _lastStatusSig) { _lastStatusSig = sig; location.reload(); }
+}
+setInterval(pollDomainStatus, 20000);
+{% if task.pending %}{% endif %}
+</script>
+{% endblock %}

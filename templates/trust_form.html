@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}创建林间信任 · {{ app_name }}{% endblock %}
+{% block page_title %}一键创建林间信任{% endblock %}
+{% block page_sub %}选择本地林与外部信任林，系统通过 WinRM + netdom 在双域控建立信任，并自动校验、记录审计日志{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-light border" href="{{ url_for('trust.index') }}">{{ ic.icon('arrow-left', 15) }} 返回信任列表</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form id="trustForm">
+      <!-- 本地林 -->
+      <div class="card mb-3">
+        <div class="card-header">{{ ic.icon('server') }} ① 本地林（信任发起方）</div>
+        <div class="card-body">
+          <label class="form-label">本地林所属域 <span class="text-danger">*</span></label>
+          <select class="form-select" name="local_id" id="localSel" required>
+            <option value="">请选择本地域</option>
+            {% for d in domains %}
+            <option value="{{ d.id }}" data-domain="{{ d.domain_name }}" data-host="{{ d.dc_host }}"
+                    {{ 'selected' if d.is_debug }}>
+              {{ d.name }}（{{ d.domain_name }}）· {{ d.dc_host }}{{ ' · 调试域' if d.is_debug }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">本地林必须已在本系统登记且连接正常（写操作需要域管理员凭据）</div>
+          <div class="mt-2 p-2 rounded" id="localInfo" style="background:#f8fafc;font-size:12.5px;display:none"></div>
+        </div>
+      </div>
+
+      <!-- 外部信任林 -->
+      <div class="card mb-3">
+        <div class="card-header">{{ ic.icon('link') }} ② 外部信任林（对方林）</div>
+        <div class="card-body">
+          <div class="btn-group btn-group-sm mb-3" role="group">
+            <input type="radio" class="btn-check" name="remote_mode" id="modeReg" value="registered" checked>
+            <label class="btn btn-outline-secondary" for="modeReg">从已登记域中选择</label>
+            <input type="radio" class="btn-check" name="remote_mode" id="modeManual" value="manual">
+            <label class="btn btn-outline-secondary" for="modeManual">手动填写对方林信息</label>
+          </div>
+
+          <div id="regBox">
+            <label class="form-label">对方林所属域 <span class="text-danger">*</span></label>
+            <select class="form-select" name="remote_id" id="remoteSel">
+              <option value="">请选择对方域</option>
+              {% for d in domains %}
+              <option value="{{ d.id }}" data-domain="{{ d.domain_name }}" data-host="{{ d.dc_host }}">
+                {{ d.name }}（{{ d.domain_name }}）· {{ d.dc_host }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">已在系统中登记的域可直接读取其连接凭据，无需重复输入密码</div>
+          </div>
+
+          <div id="manualBox" style="display:none">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">域控 IP <span class="text-danger">*</span></label>
+                <input class="form-control" name="remote_dc_host" placeholder="填写AD域控服务器IP地址">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">AD 域名 <span class="text-danger">*</span></label>
+                <input class="form-control" name="remote_domain_name" placeholder="填写AD林根域名，如 corp.example.com">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">管理员账号 <span class="text-danger">*</span></label>
+                <input class="form-control" name="remote_username" placeholder="域管理员账号，如administrator"
+                       autocomplete="off">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">管理员密码 <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <input class="form-control" type="password" name="remote_password" id="remotePwd"
+                         placeholder="域管理员密码" autocomplete="new-password">
+                  <button class="btn btn-outline-secondary" type="button"
+                          onclick="ADM.togglePwd('remotePwd', this)">显示</button>
+                </div>
+              </div>
+            </div>
+            <div class="help-text mt-2">对方林凭据仅在本次创建过程中使用，用于 WinRM 连接对方域控执行 netdom，不落库。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 信任方向 -->
+      <div class="card mb-3">
+        <div class="card-header">{{ ic.icon('chevron-right') }} ③ 信任方向与选项</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">信任方向</label>
+              <select class="form-select" name="direction" id="dirSel">
+                <option value="bidirectional">双向（推荐，双方互信）</option>
+                <option value="outbound">出站（本林信任对方，对方用户可访问本林资源）</option>
+              </select>
+              <div class="form-text" id="dirHint">双向：两个林的用户可互相访问对方域资源。</div>
+              <div class="help-text mt-1">netdom 在发起方创建的信任为「本林信任对方」（出站）；
+                勾选 twoway 即为双向。如需「对方信任本林」的单向关系，请在对方林侧创建。</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label d-block">执行选项</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="dryRun" name="dry_run" value="1">
+                <label class="form-check-label" for="dryRun">仅做连通预检（不创建信任）</label>
+              </div>
+              <div class="help-text mt-1">建议先勾选预检，确认双域控 389/5985 可达后再正式创建</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body d-flex gap-2 align-items-center">
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="btnPreflight">
+            {{ ic.icon('bolt', 15) }} 连通性预检</button>
+          <button class="btn btn-danger btn-sm" type="submit" id="btnSubmit">
+            {{ ic.icon('link', 15) }} 创建林间信任</button>
+          <span class="help-text ms-auto">创建为高危操作，提交前需二次确认</span>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('info') }} 执行流程</div>
+      <div class="card-body">
+        <ol class="steps" id="flowSteps">
+          <li><b>①</b> 校验两端参数与域配置</li>
+          <li><b>②</b> 双域控 TCP 预检（389/636/5985/5986）与 DNS 解析</li>
+          <li><b>③</b> WinRM 连接本地域控，执行 netdom trust 建立信任</li>
+          <li><b>④</b> 双端复核 trustedDomain 对象，确认信任已生效</li>
+          <li><b>⑤</b> 刷新两个域的信任缓存，写审计日志</li>
+        </ol>
+        <div class="help-text mt-2">
+          任一步失败即中止：返回具体失败步骤与原因，<b>不会修改任何缓存数据</b>。
+        </div>
+      </div>
+    </div>
+
+    {% if debug %}
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('shield') }} 调试环境（固定）</div>
+      <div class="card-body" style="font-size:12.5px">
+        <div class="kv">
+          <dt>域控 IP</dt><dd class="mono">{{ debug.dc_host }}</dd>
+          <dt>AD 域名</dt><dd class="mono">{{ debug.domain_name }}</dd>
+          <dt>管理员</dt><dd class="mono">{{ debug.username }}</dd>
+          <dt>LDAP</dt><dd>{{ debug.ldap_port }} / SSL 636</dd>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary mt-2 w-100" type="button" id="btnFillDebug">
+          用调试域信息填充当前选中项</button>
+        <div class="help-text mt-2">调试域密码已加密保存在多域配置中，此处不回显。</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card mt-3" id="preflightCard" style="display:none">
+      <div class="card-header">{{ ic.icon('check') }} 预检结果</div>
+      <div class="card-body" id="preflightBody" style="font-size:12.5px"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DEBUG = {
+  domain_name: {{ (debug.domain_name if debug else '')|tojson }},
+  dc_host: {{ (debug.dc_host if debug else '')|tojson }},
+  username: {{ (debug.username if debug else '')|tojson }}
+};
+
+const localSel = document.getElementById('localSel');
+const remoteSel = document.getElementById('remoteSel');
+const regBox = document.getElementById('regBox');
+const manualBox = document.getElementById('manualBox');
+const dirSel = document.getElementById('dirSel');
+const dirHint = document.getElementById('dirHint');
+const DIR_HINTS = {
+  bidirectional: '双向：两个林的用户可互相访问对方域资源，适用于集团内互信。',
+  outbound: '出站：本林信任对方林，对方用户可访问本林资源。请确认该授权范围符合安全策略。'
+};
+
+document.querySelectorAll('[name=remote_mode]').forEach(r => r.addEventListener('change', () => {
+  const manual = document.getElementById('modeManual').checked;
+  manualBox.style.display = manual ? '' : 'none';
+  regBox.style.display = manual ? 'none' : '';
+}));
+
+dirSel.addEventListener('change', () => { dirHint.textContent = DIR_HINTS[dirSel.value] || ''; });
+
+function showLocalInfo() {
+  const o = localSel.selectedOptions[0];
+  const box = document.getElementById('localInfo');
+  if (!o || !o.value) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = '本地林：<b class="mono">' + ADM.esc(o.dataset.domain) + '</b> · 域控 <b class="mono">' +
+    ADM.esc(o.dataset.host) + '</b>';
+}
+localSel.addEventListener('change', showLocalInfo);
+showLocalInfo();
+
+{% if debug %}
+document.getElementById('btnFillDebug').addEventListener('click', () => {
+  const targets = [];
+  if (localSel.value) targets.push('local');
+  const useManual = document.getElementById('modeManual').checked;
+  if (useManual) {
+    document.querySelector('[name=remote_dc_host]').value = DEBUG.dc_host;
+    document.querySelector('[name=remote_domain_name]').value = DEBUG.domain_name;
+    document.querySelector('[name=remote_username]').value = DEBUG.username;
+    ADM.warn('已填入调试域地址与账号，密码需手动填写（不落库、不回显）');
+  } else {
+    ADM.warn('调试域信息仅用于手动填写模式；已登记域会直接读取加密保存的凭据');
+  }
+});
+{% endif %}
+
+// ---------------- 预检 ----------------
+document.getElementById('btnPreflight').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const localId = localSel.value;
+  const remoteId = document.getElementById('modeReg').checked ? remoteSel.value : '';
+  if (!localId) { ADM.warn('请先选择本地林'); return; }
+  if (!remoteId && !document.getElementById('modeManual').checked) {
+    ADM.warn('请选择对方林，或切换为手动填写'); return;
+  }
+  ADM.btnLoading(btn, true, '预检中…');
+  const r = await ADM.post('/trust/preflight', { local_id: localId, remote_id: remoteId }, { silent: true });
+  ADM.btnLoading(btn, false);
+  const card = document.getElementById('preflightCard');
+  const body = document.getElementById('preflightBody');
+  card.style.display = '';
+  if (!r.ok) {
+    body.innerHTML = '<div class="alert alert-danger py-2 mb-0" style="font-size:12.5px">' +
+      ADM.esc(r.message || '预检失败') + '</div>';
+    return;
+  }
+  const render = (title, obj) => {
+    if (!obj) return '';
+    let h = '<div class="fw-semibold mb-1">' + ADM.esc(title) + '（' +
+            ADM.esc(obj.domain) + ' @ ' + ADM.esc(obj.host) + '）</div><ul class="list-unstyled mb-2">';
+    (obj.results || []).forEach(x => {
+      h += '<li class="' + (x.ok ? 'text-success' : (x.optional ? 'text-muted' : 'text-danger')) + '" style="font-size:12px">' +
+           (x.ok ? '✓ ' : (x.optional ? '· ' : '✕ ')) + ADM.esc(x.name) + '：' + ADM.esc(x.msg) + '</li>';
+    });
+    return h + '</ul>';
+  };
+  body.innerHTML = render('本地林', r.data.local) + render('对方林', r.data.remote) +
+    '<div class="help-text">预检仅做网络层探测，不写入任何数据。</div>';
+});
+
+// ---------------- 创建 ----------------
+document.getElementById('trustForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const manual = document.getElementById('modeManual').checked;
+  const data = ADM.formData(form);
+  data.local_id = localSel.value;
+  data.remote_id = manual ? '' : remoteSel.value;
+  const dryRun = !!document.getElementById('dryRun').checked;
+  data.dry_run = dryRun ? '1' : '0';
+
+  const localText = localSel.selectedOptions[0] ? localSel.selectedOptions[0].textContent.trim() : '';
+  const remoteText = manual
+    ? (data.remote_domain_name || '') + ' @ ' + (data.remote_dc_host || '')
+    : (remoteSel.selectedOptions[0] ? remoteSel.selectedOptions[0].textContent.trim() : '');
+
+  if (!data.local_id) { ADM.warn('请选择本地林'); return; }
+  if (!manual && !data.remote_id) { ADM.warn('请选择对方林'); return; }
+  if (manual) {
+    for (const k of ['remote_dc_host', 'remote_domain_name', 'remote_username', 'remote_password']) {
+      if (!data[k]) { ADM.warn('手动填写模式下，域控 IP / 域名 / 账号 / 密码均必填'); return; }
+    }
+    if (data.remote_domain_name.toLowerCase() === (localSel.selectedOptions[0].dataset.domain || '').toLowerCase()) {
+      ADM.err('对方林不能与本地林相同'); return;
+    }
+  }
+  if (!dryRun && (manual ? !data.remote_password : false)) {
+    ADM.warn('请填写对方域管理员密码'); return;
+  }
+
+  if (!dryRun) {
+    const yes = await ADM.confirmDanger({
+      title: '创建林间信任（域级别重大变更）',
+      message: '创建林间信任属于域级别重大变更，请确认信息无误。该操作将在两个 AD 林之间建立 Kerberos 认证通道。',
+      items: [
+        '本地林：' + localText,
+        '外部信任林：' + remoteText,
+        '信任方向：' + dirSel.selectedOptions[0].textContent.trim(),
+        '执行方式：WinRM 连接双域控执行 netdom trust'
+      ],
+      requireCheck: true,
+      checkText: '我已核对两个林的域名与方向，确认该变更符合安全策略',
+      requireInput: '确认',
+      inputHint: '请输入「确认」以继续',
+      confirmText: '确认创建信任'
+    });
+    if (!yes) return;
+    data.confirm = '1';
+  }
+
+  const btn = document.getElementById('btnSubmit');
+  ADM.btnLoading(btn, true, dryRun ? '预检中…' : '正在创建信任…');
+  const r = await ADM.post('/trust/create', data, { silent: true });
+  ADM.btnLoading(btn, false);
+
+  if (!r.ok) {
+    // 展示失败步骤明细
+    const steps = (r.steps || []).map(s =>
+      '<li class="' + (s.ok ? 'ok' : 'fail') + '">' + (s.ok ? '✓ ' : '✕ ') + ADM.esc(s.name || '') +
+      '：' + ADM.esc(s.msg || '') + '</li>').join('');
+    ADM.formModal({
+      title: '创建失败',
+      body: '<div class="alert alert-danger py-2" style="font-size:13px">' + ADM.esc(r.message || '操作失败') + '</div>' +
+            (steps ? '<ul class="steps">' + steps + '</ul>' : '') +
+            '<div class="help-text mt-2">失败时未对任何缓存数据做修改。请按上述原因修复网络/凭据后重试。</div>',
+      okText: '知道了', onSubmit: () => true
+    });
+    return;
+  }
+
+  const res = r.data || {};
+  const steps = (res.steps || []).map(s =>
+    '<li class="' + (s.ok ? 'ok' : 'fail') + '">' + (s.ok ? '✓ ' : '✕ ') + ADM.esc(s.name || '') +
+    '：' + ADM.esc(s.msg || '') + '</li>').join('');
+  ADM.formModal({
+    title: dryRun ? '预检完成（未创建信任）' : '信任创建成功',
+    body: (steps ? '<ul class="steps">' + steps + '</ul>' : '<div>' + ADM.esc(r.message || '') + '</div>') +
+          '<div class="help-text mt-2">' + (dryRun ? '本次为预检模式，未对 AD 做任何变更。'
+            : '已写入审计日志，并触发两个域的信任缓存刷新。') + '</div>',
+    okText: '查看信任列表',
+    onSubmit: () => { location.href = '/trust/'; return true; }
+  });
+});
+</script>
+{% endblock %}

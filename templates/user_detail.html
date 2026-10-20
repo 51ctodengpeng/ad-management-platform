@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}{{ u['sam_account_name'] }} · 用户详情{% endblock %}
+{% block page_title %}{{ u['display_name'] or u['sam_account_name'] }}{% endblock %}
+{% block page_sub %}
+{{ d.name }}（{{ d.domain_name }}）· 缓存信息读 SQLite，锁定/密码过期/最后登录实时取自 AD
+{% if d.status == 'offline' %}<span class="badge-soft red">域离线 · 只读</span>{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-light border" href="{{ url_for('users.index', domain_id=d.id) }}">{{ ic.icon('arrow-left', 15) }} 返回列表</a>
+{% if d.enabled and d.status != 'offline' %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('users.edit', uid=u['id']) }}">{{ ic.icon('edit', 15) }} 编辑</a>
+<a class="btn btn-sm btn-primary" href="{{ url_for('users.edit', uid=u['id']) }}#pwd">重置密码</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- 左：账号概览 -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="avatar-lg">{{ (u['display_name'] or u['sam_account_name'] or '?')[0] | upper }}</div>
+          <div class="min-w-0">
+            <div class="h5 mb-1 text-truncate">{{ u['display_name'] or '—' }}</div>
+            <div class="text-muted" style="font-size:13px">{{ u['sam_account_name'] }}</div>
+            <div class="d-flex gap-1 mt-2 flex-wrap">
+              {% if rt.ok %}
+                {% if u['enabled'] %}<span class="badge-soft green">启用</span>{% else %}<span class="badge-soft gray">禁用</span>{% endif %}
+                {% if rt.locked %}<span class="badge-soft red">已锁定</span>{% else %}<span class="badge-soft blue">未锁定</span>{% endif %}
+                {% if rt.pwd_expired %}<span class="badge-soft orange">密码已过期</span>{% endif %}
+              {% else %}
+                <span class="badge-soft gray">实时状态不可用</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% if not rt.ok %}
+        <div class="alert alert-warning mt-3 mb-0" style="font-size:13px">
+          {{ ic.icon('warn', 14) }} 无法从该域实时读取锁定/密码状态：{{ rt.error }}
+          <div class="help-text mt-1">以下实时字段留空，缓存字段仍可参考。域恢复后刷新即可。</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="list-group list-group-flush" style="font-size:13px">
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">账户状态</span>
+          <span>{% if rt.ok %}{{ '启用' if u['enabled'] else '禁用' }}{% else %}—{% endif %}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">登录名（sAMAccountName）</span>
+          <span class="fw-semibold">{{ u['sam_account_name'] }}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">UPN</span>
+          <span class="text-truncate ms-2" title="{{ u['user_principal_name'] }}">{{ u['user_principal_name'] or '—' }}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">邮箱</span>
+          <span class="text-truncate ms-2">{{ u['mail'] or '—' }}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">部门 / 职位</span>
+          <span class="text-end">{{ u['department'] or '—' }}{% if u['title'] %}<div class="help-text">{{ u['title'] }}</div>{% endif %}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">电话 / 手机</span>
+          <span>{{ u['telephone'] or '—' }}{% if u['mobile'] %}<div class="help-text">{{ u['mobile'] }}</div>{% endif %}</span></div>
+        <div class="list-group-item"><div class="text-muted mb-1">所属 OU</div>
+          <div class="code-box" style="word-break:break-all">{{ u['ou_dn'] or d.base_dn }}</div></div>
+        <div class="list-group-item"><div class="text-muted mb-1">DN</div>
+          <div class="code-box" style="word-break:break-all">{{ u['dn'] }}</div></div>
+        <div class="list-group-item d-flex justify-content-between"><span class="text-muted">创建时间</span>
+          <span>{{ u['when_created'] or '—' }}</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">{{ ic.icon('shield') }} 高危操作</div>
+      <div class="card-body d-grid gap-2">
+        {% set ro = (d.status == 'offline' or not d.enabled) %}
+        <button class="btn btn-sm btn-outline-secondary" data-act="toggle" {{ 'disabled' if ro }}>
+          {{ ic.icon('power', 14) }} {{ '禁用账号' if u['enabled'] else '启用账号' }}</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="unlock" {{ 'disabled' if ro or not rt.locked }}>
+          {{ ic.icon('unlock', 14) }} 解锁账号</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="move" {{ 'disabled' if ro }}>
+          {{ ic.icon('move', 14) }} 移动到其他 OU</button>
+        <button class="btn btn-sm btn-outline-danger" data-act="delete" {{ 'disabled' if ro }}>
+          {{ ic.icon('trash', 14) }} 删除用户</button>
+        <div class="help-text mt-1">所有操作直连 AD 域控，成功后立即回写缓存；失败不会修改缓存。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：实时状态 + 组 -->
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">{{ ic.icon('clock') }} 实时状态（直连 AD 查询单条对象，非缓存）
+        <span class="ms-auto help-text">刷新于 {{ rt.fetched_at or '—' }}</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-4">
+            <div class="metric">
+              <div class="metric-label">锁定状态</div>
+              <div class="metric-value">
+                {% if not rt.ok %}<span class="text-muted">未知</span>
+                {% elif rt.locked %}<span class="text-danger">已锁定</span>
+                {% else %}<span class="text-success">正常</span>{% endif %}
+              </div>
+              {% if rt.ok %}<div class="help-text">锁定时间：{{ rt.lockout_time or '—' }} · 错误次数：{{ rt.bad_pwd_count }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="metric">
+              <div class="metric-label">密码过期时间</div>
+              <div class="metric-value" style="font-size:16px">
+                {% if not rt.ok %}<span class="text-muted">未知</span>
+                {% else %}{{ rt.pwd_expires_at or '—' }}{% endif %}
+              </div>
+              <div class="help-text">上次设置：{{ rt.pwd_last_set or '—' }}
+                {% if rt.ok and rt.pwd_never_expires %}<span class="badge-soft gray ms-1">永不过期</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="metric">
+              <div class="metric-label">最后登录时间</div>
+              <div class="metric-value" style="font-size:16px">
+                {% if not rt.ok %}<span class="text-muted">未知</span>
+                {% else %}{{ rt.last_logon_timestamp or rt.last_logon or '从未登录' }}{% endif %}
+              </div>
+              <div class="help-text">登录次数：{{ rt.logon_count if rt.ok else '—' }}</div>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="row g-2" style="font-size:13px">
+          <div class="col-md-6"><span class="text-muted">userAccountControl：</span>
+            <code>{{ rt.uac if rt.ok else u['user_account_control'] }}</code></div>
+          <div class="col-md-6"><span class="text-muted">账户到期：</span>
+            {{ rt.account_expires if rt.ok else '—' }}</div>
+          <div class="col-md-6"><span class="text-muted">AD 最后修改：</span>
+            {{ rt.when_changed if rt.ok else '—' }}</div>
+          <div class="col-md-6"><span class="text-muted">缓存同步时间：</span>{{ u['synced_at'] or '—' }}</div>
+        </div>
+        <div class="help-text mt-2">
+          说明：锁定状态、密码过期时间、最后登录时间按需求单独直连该域 AD 读取单个对象，不经过缓存；
+          其余字段来自 SQLite 缓存以降低域控压力。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">{{ ic.icon('group') }} 所属用户组 <span class="badge-soft blue ms-2">{{ groups|length }}</span>
+        <div class="ms-auto d-flex gap-1">
+          <button class="btn btn-sm btn-light border" data-act="group" {{ 'disabled' if d.status == 'offline' }}>加入 / 移出</button>
+        </div>
+      </div>
+      {% if group_err %}
+      <div class="card-body"><div class="alert alert-warning mb-0" style="font-size:13px">
+        读取组成员失败：{{ group_err }}</div></div>
+      {% elif not groups %}
+      <div class="empty-state">{{ ic.icon('group', 30) }}<div>该用户不属于任何已缓存的用户组</div>
+        <div class="help-text mt-1">若是新建的组，请执行一次同步后再查看</div></div>
+      {% else %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>组名</th><th>登录名</th><th>作用域</th><th>类型</th><th class="text-end">操作</th></tr></thead>
+          <tbody>
+          {% for g in groups %}
+            <tr>
+              <td><a href="{{ url_for('groups.detail', gid=g['id']) }}" class="text-decoration-none">{{ g['name'] }}</a></td>
+              <td class="text-muted" style="font-size:12px">{{ g['sam_account_name'] }}</td>
+              <td><span class="badge-soft blue">{{ g['scope'] }}</span></td>
+              <td><span class="badge-soft gray">{{ g['category'] }}</span></td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-light border" data-remove-group="{{ g['dn'] }}"
+                        {{ 'disabled' if d.status == 'offline' }}>移出</button>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const UID = {{ u['id'] }}, DOMAIN_ID = {{ d.id }}, SAM = {{ u['sam_account_name']|tojson }};
+const ENABLED = {{ 'true' if u['enabled'] else 'false' }}, LOCKED = {{ 'true' if rt.locked else 'false' }};
+const RO = {{ 'true' if (d.status == 'offline' or not d.enabled) else 'false' }};
+
+document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  const act = btn.dataset.act;
+  if (act === 'toggle') {
+    const yes = await ADM.confirmDanger({
+      title: ENABLED ? '禁用账号' : '启用账号',
+      message: ENABLED ? '禁用后该用户立即无法登录域，邮箱、共享、VPN 等依赖域认证的资源全部失效。'
+                       : '启用后该用户可重新登录域。',
+      items: ['账号：' + SAM, '域：' + DOMAIN_ID],
+      confirmText: ENABLED ? '禁用' : '启用'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/users/' + UID + '/toggle', { enabled: ENABLED ? '0' : '1' });
+    if (r.ok) setTimeout(() => location.reload(), 800);
+  } else if (act === 'unlock') {
+    const r = await ADM.post('/users/' + UID + '/unlock', {});
+    if (r.ok) setTimeout(() => location.reload(), 800);
+  } else if (act === 'move') {
+    const r = await ADM.get('/ous/api/options?domain_id=' + DOMAIN_ID, { silent: true });
+    if (!r.ok) return;
+    const opts = r.data.map(o => '<option value="' + ADM.esc(o.dn) + '">' +
+      '&nbsp;'.repeat(Math.max(0, o.depth) * 2) + ADM.esc(o.name) + '</option>').join('');
+    ADM.formModal({
+      title: '移动用户 · ' + SAM,
+      body: '<label class="form-label">目标 OU</label><select class="form-select" name="target_ou">' + opts + '</select>' +
+            '<div class="form-text mt-2">仅支持同一域内移动；组与权限保持不变</div>',
+      onSubmit: async (form) => {
+        const resp = await ADM.post('/users/' + UID + '/move',
+          { target_ou: form.querySelector('[name=target_ou]').value });
+        if (resp.ok) setTimeout(() => location.reload(), 700);
+        return false;
+      }
+    });
+  } else if (act === 'delete') {
+    const yes = await ADM.confirmDanger({
+      title: '删除用户（不可恢复）',
+      message: '将从 AD 中直接删除该用户对象。删除后需依赖域控回收站或备份才能恢复。',
+      items: ['账号：' + SAM, 'DN 将被永久移除', '所属组成员关系一并清除'],
+      requireInput: SAM, inputHint: '请输入登录名 ' + SAM + ' 以确认删除',
+      confirmText: '确认删除'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/users/' + UID + '/delete', { confirm: '1' });
+    if (r.ok) setTimeout(() => { location.href = '/users/?domain_id=' + DOMAIN_ID; }, 900);
+  } else if (act === 'group') {
+    const r = await ADM.get('/groups/api/options?domain_id=' + DOMAIN_ID, { silent: true });
+    if (!r.ok) return;
+    if (!r.data.length) { ADM.warn('该域没有可用的用户组'); return; }
+    const opts = r.data.map(g => '<option value="' + ADM.esc(g.dn) + '">' + ADM.esc(g.label) + '</option>').join('');
+    ADM.formModal({
+      title: '用户组成员 · ' + SAM,
+      body: '<label class="form-label">选择用户组</label><select class="form-select" name="group_dn">' + opts + '</select>' +
+            '<div class="d-flex gap-2 mt-3"><button type="button" class="btn btn-sm btn-primary" data-g="add">加入该组</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger" data-g="remove">从该组移除</button></div>',
+      okText: '关闭',
+      onSubmit: () => true
+    });
+    const modalEl = document.querySelector('.modal.show');
+    modalEl.querySelectorAll('[data-g]').forEach(b => b.onclick = async () => {
+      const resp = await ADM.post('/users/' + UID + '/groups',
+        { group_dn: modalEl.querySelector('[name=group_dn]').value, action: b.dataset.g });
+      if (resp.ok) setTimeout(() => location.reload(), 800);
+    });
+  }
+}));
+
+document.querySelectorAll('[data-remove-group]').forEach(btn => btn.addEventListener('click', async () => {
+  const gdn = btn.dataset.removeGroup;
+  const yes = await ADM.confirmDanger({
+    title: '移出用户组', message: '将该账号从所选用户组中移除，其通过该组继承的权限会立即失效。',
+    items: ['账号：' + SAM, '组：' + gdn], confirmText: '移出'
+  });
+  if (!yes) return;
+  const r = await ADM.post('/users/' + UID + '/groups', { group_dn: gdn, action: 'remove' });
+  if (r.ok) setTimeout(() => location.reload(), 800);
+}));
+</script>
+{% endblock %}

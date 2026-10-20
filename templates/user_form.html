@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% set is_edit = (mode == 'edit') %}
+{% block title %}{{ '编辑用户' if is_edit else '新增用户' }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ '编辑用户 · ' ~ u['sam_account_name'] if is_edit else '新增 AD 用户' }}{% endblock %}
+{% block page_sub %}{{ d.name }}（{{ d.domain_name }}）· 写操作直连 AD 域控，成功后回写缓存{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-light border" href="{{ url_for('users.detail', uid=u['id']) if is_edit else url_for('users.index', domain_id=d.id) }}">
+  {{ ic.icon('arrow-left', 15) }} 返回</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form id="userForm" class="card">
+      <div class="card-header">{{ ic.icon('user') }} 基本信息</div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% if not is_edit %}
+          <div class="col-md-6">
+            <label class="form-label">所属域 <span class="text-danger">*</span></label>
+            <select class="form-select" name="domain_id" id="domainSel">
+              {% for x in domains %}
+              <option value="{{ x.id }}" {{ 'selected' if x.id == d.id }}>{{ x.name }}（{{ x.domain_name }}）</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">切换域会重新加载该域的 OU 列表</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">登录名 sAMAccountName <span class="text-danger">*</span></label>
+            <input class="form-control" name="sam_account_name" required maxlength="20"
+                   pattern="[A-Za-z0-9._\-]+" placeholder="如 zhangsan（≤20 位，字母/数字/._-）">
+            <div class="form-text">创建后不可修改；建议与工号或姓名拼音一致</div>
+          </div>
+          {% else %}
+          <div class="col-md-6">
+            <label class="form-label">登录名 sAMAccountName</label>
+            <input class="form-control" value="{{ u['sam_account_name'] }}" disabled>
+            <div class="form-text">AD 中该属性创建后不可修改</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">所属域</label>
+            <input class="form-control" value="{{ d.name }}（{{ d.domain_name }}）" disabled>
+          </div>
+          {% endif %}
+
+          <div class="col-md-6">
+            <label class="form-label">显示名称</label>
+            <input class="form-control" name="display_name" value="{{ u['display_name'] if is_edit else '' }}"
+                   placeholder="如 张三">
+            <div class="form-text">同时作为 CN；修改会重命名该用户对象（DN 变更）</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">用户登录名 UPN</label>
+            <input class="form-control" name="user_principal_name"
+                   value="{{ u['user_principal_name'] if is_edit else '' }}"
+                   placeholder="留空自动生成 sam@{{ d.domain_name }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">姓 sn</label>
+            <input class="form-control" name="sn" value="{{ u['sn'] if is_edit else '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">名 givenName</label>
+            <input class="form-control" name="given_name" value="{{ u['given_name'] if is_edit else '' }}">
+          </div>
+
+          <div class="col-12"><div class="section-title">联系方式与组织</div></div>
+          <div class="col-md-6">
+            <label class="form-label">邮箱 mail</label>
+            <input class="form-control" type="email" name="mail" value="{{ u['mail'] if is_edit else '' }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">办公电话</label>
+            <input class="form-control" name="telephone" value="{{ u['telephone'] if is_edit else '' }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">手机</label>
+            <input class="form-control" name="mobile" value="{{ u['mobile'] if is_edit else '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">部门</label>
+            <input class="form-control" name="department" value="{{ u['department'] if is_edit else '' }}" list="deptList">
+            <datalist id="deptList"></datalist>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">职位</label>
+            <input class="form-control" name="title" value="{{ u['title'] if is_edit else '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">公司</label>
+            <input class="form-control" name="company" value="{{ u['company'] if is_edit else '' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label">描述 / 备注</label>
+            <textarea class="form-control" name="description" rows="2">{{ u['description'] if is_edit else '' }}</textarea>
+          </div>
+          {% if not is_edit %}
+          <div class="col-12">
+            <label class="form-label">所属 OU <span class="text-danger">*</span></label>
+            <select class="form-select" name="ou_dn" id="ouSel"></select>
+            <div class="form-text">用户对象的存放位置，决定组策略（GPO）生效范围</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if not is_edit %}
+      <div class="card-header" style="border-top:1px solid var(--adm-border)">{{ ic.icon('key') }} 初始密码与状态</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-7">
+            <label class="form-label">初始密码 <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input class="form-control" type="password" name="password" id="pwd" autocomplete="new-password">
+              <button class="btn btn-outline-secondary" type="button" id="btnGen">随机生成</button>
+              <button class="btn btn-outline-secondary" type="button" onclick="ADM.togglePwd('pwd', this)">显示</button>
+            </div>
+            <div class="form-text">至少 7 位，且包含大写/小写/数字/符号任意 3 类（符合默认域密码策略）</div>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label d-block">账户选项</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="mustChange" name="must_change_password" value="1" checked>
+              <label class="form-check-label" for="mustChange">首次登录必须修改密码</label>
+            </div>
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" id="enabledChk" name="enabled" value="1" checked>
+              <label class="form-check-label" for="enabledChk">创建后立即启用账号</label>
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-warning mt-3 mb-0" style="font-size:12.5px">
+          {{ ic.icon('warn', 14) }} 密码通过 LDAPS/STARTTLS 加密通道写入 AD；若该域控 636 与 STARTTLS 均不可用，创建会失败并自动回滚。
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card-body d-flex gap-2" style="border-top:1px solid var(--adm-border)">
+        <button class="btn btn-primary btn-sm" type="submit">{{ ic.icon('save', 15) }} {{ '保存修改' if is_edit else '创建用户' }}</button>
+        <a class="btn btn-light border btn-sm" href="{{ url_for('users.detail', uid=u['id']) if is_edit else url_for('users.index', domain_id=d.id) }}">取消</a>
+        {% if is_edit %}
+        <a class="btn btn-outline-secondary btn-sm ms-auto" href="{{ url_for('users.detail', uid=u['id']) }}">密码 / 移动 OU / 组管理 →</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('info') }} 填写说明</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9;color:var(--adm-muted)">
+        <ul class="ps-3 mb-0">
+          <li><b>登录名</b>：AD 中最关键的登录标识，创建后无法改名（需删除重建）。</li>
+          <li><b>显示名称</b>：列表、通讯录、邮件显示用的名字，会同步为对象 CN。</li>
+          <li><b>UPN</b>：形如 <code>zhangsan@{{ d.domain_name }}</code>，用于 O365 / 域登录。</li>
+          <li><b>OU</b>：建议按部门组织，用户才能继承对应的组策略。</li>
+          <li><b>姓</b>：AD 强制要求 person 类对象具备 sn，留空时自动取显示名首字。</li>
+        </ul>
+      </div>
+    </div>
+    {% if is_edit %}
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('clock') }} 变更提示</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9">
+        修改 <b>显示名称</b> 会触发对象重命名，DN 随之改变，缓存会在写入成功后按新 DN 重建，不会产生重复记录。<br>
+        如需调整所属部门位置，请使用「移动到 OU」，不要依赖重命名。
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const IS_EDIT = {{ 'true' if is_edit else 'false' }};
+const UID = {{ u['id'] if is_edit else 0 }};
+
+async function loadOUs(domainId) {
+  const sel = document.getElementById('ouSel');
+  if (!sel) return;
+  sel.innerHTML = '<option>加载中…</option>';
+  const r = await ADM.get('/ous/api/options?domain_id=' + domainId, { silent: true });
+  if (!r.ok) { sel.innerHTML = '<option value="">（无法加载 OU，请检查该域是否在线）</option>'; return; }
+  sel.innerHTML = r.data.map(o => '<option value="' + ADM.esc(o.dn) + '">' +
+    '&nbsp;'.repeat(Math.max(0, o.depth) * 2) + ADM.esc(o.name) + '</option>').join('');
+}
+
+async function loadDepts(domainId) {
+  const dl = document.getElementById('deptList');
+  if (!dl) return;
+  const r = await ADM.get('/users/facets?domain_id=' + domainId, { silent: true });
+  if (!r.ok) return;
+  dl.innerHTML = (r.data.departments || []).map(x =>
+    '<option value="' + ADM.esc(x.name) + '">' + ADM.esc(x.name) + '（' + x.count + ' 人）</option>').join('');
+}
+
+loadDepts({{ d.id }});
+const ds = document.getElementById('domainSel');
+if (ds) { loadOUs(ds.value); ds.addEventListener('change', () => loadOUs(ds.value)); }
+
+const gen = document.getElementById('btnGen');
+if (gen) gen.onclick = () => { document.getElementById('pwd').value = ADM.randomPassword(14); };
+
+document.getElementById('userForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = ADM.formData(form);
+  // 未勾选的 switch 不会随表单提交，显式补齐为 0
+  if (!data.must_change_password) data.must_change_password = '0';
+  if (!data.enabled) data.enabled = '0';
+  const btn = form.querySelector('[type=submit]');
+  ADM.btnLoading(btn, true, IS_EDIT ? '保存中…' : '创建中…');
+  const url = IS_EDIT ? '/users/' + UID + '/update' : '/users/create';
+  if (!IS_EDIT) data.domain_id = data.domain_id || {{ d.id }};
+  const r = await ADM.post(url, data, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '操作失败'); return; }
+  if (IS_EDIT) {
+    ADM.ok(r.message || '已保存');
+    setTimeout(() => { location.href = '/users/' + UID; }, 700);
+  } else {
+    // 新建成功：展示初始密码（仅此一次）
+    const pwd = (r.data && r.data.password) || data.password;
+    const modal = ADM.formModal({
+      title: '用户创建成功',
+      body: '<div class="mb-2">账号 <b>' + ADM.esc(data.sam_account_name) + '</b> 已在 AD 中创建并同步至缓存。</div>' +
+            '<label class="form-label">初始密码（仅显示一次，请立即记录）</label>' +
+            '<div class="pwd-reveal" id="pwdShow">' + ADM.esc(pwd) + '</div>' +
+            '<div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="copyPwd">复制密码</button>' +
+            '<span class="help-text align-self-center">密码不会写入操作日志</span></div>',
+      okText: '完成',
+      onSubmit: () => { location.href = '/users/?domain_id=' + (data.domain_id || {{ d.id }}); return true; }
+    });
+    modal.form.querySelector('#copyPwd').onclick = () => ADM.copy(pwd);
+  }
+});
+</script>
+{% endblock %}

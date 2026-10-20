@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}部门 OU · {{ app_name }}{% endblock %}
+{% block page_title %}部门 OU 管理{% endblock %}
+{% block page_sub %}
+{% if d %}{{ d.name }}（{{ d.domain_name }}）· {{ total_ou }} 个 OU{% if d.status == 'offline' %}
+  <span class="badge-soft red">离线 · 只读</span>{% endif %}{% else %}请先配置域{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+{% if d %}
+<button class="btn btn-sm btn-primary" data-new-root {{ 'disabled' if d.status == 'offline' or not d.enabled }}>
+  {{ ic.icon('plus', 15) }} 新建根级 OU</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<form class="filter-bar mb-0" method="get" style="border-radius:10px;border-bottom:1px solid var(--adm-border)">
+  <label class="form-label mb-0">切换域</label>
+  <select class="form-select form-select-sm" name="domain_id" style="width:240px" onchange="this.form.submit()">
+    {% for x in domains %}
+    <option value="{{ x.id }}" {{ 'selected' if d and x.id == d.id }}>{{ x.name }}（{{ x.domain_name }}）</option>
+    {% endfor %}
+  </select>
+  <span class="help-text">切换域会重新加载该域的 OU 树（只读缓存，不实时查询域控）</span>
+  <div class="ms-auto d-flex gap-1">
+    <button type="button" class="btn btn-sm btn-light border" id="btnExpand">全部展开</button>
+    <button type="button" class="btn btn-sm btn-light border" id="btnCollapse">全部折叠</button>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('users.index', domain_id=d.id if d else '') }}">查看该域用户</a>
+  </div>
+</form>
+
+<div class="row g-3 mt-0">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('sitemap') }} OU 树
+        <span class="ms-auto help-text">点击节点查看操作；数字为直属/子树用户数</span>
+      </div>
+      <div class="card-body" style="max-height:calc(100vh - 290px);overflow:auto">
+        {% if tree and tree.children %}
+        {% macro node(n, level) %}
+          <li>
+            <div class="ou-node" data-dn="{{ n.dn }}" data-name="{{ n.name }}"
+                 data-level="{{ level }}" data-desc="{{ n.description or '' }}" data-parent="{{ n.parent_dn or '' }}">
+              {% if n.children %}<span class="caret">{{ ic.icon('chevron-down', 13) }}</span>
+              {% else %}<span class="caret" style="visibility:hidden">{{ ic.icon('chevron-right', 13) }}</span>{% endif %}
+              {{ ic.icon('folder', 14) }}
+              <span class="text-truncate" style="max-width:220px" title="{{ n.dn }}">{{ n.name }}</span>
+              {% if n.description %}<span class="help-text text-truncate" style="max-width:120px">{{ n.description }}</span>{% endif %}
+              <span class="cnt" title="直属 {{ n.direct_users }} / 子树 {{ n.subtree_users }}">{{ n.direct_users }} / {{ n.subtree_users }}</span>
+            </div>
+            {% if n.children %}<ul>{% for c in n.children %}{{ node(c, level + 1) }}{% endfor %}</ul>{% endif %}
+          </li>
+        {% endmacro %}
+        <div class="ou-tree"><ul>{{ node(tree, 0) }}</ul></div>
+        {% else %}
+        <div class="empty-state">{{ ic.icon('folder', 32) }}
+          <div>该域缓存中没有任何 OU</div>
+          <div class="help-text mt-1">可先执行一次同步，或点击右上角新建根级 OU</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card" id="detailCard">
+      <div class="card-header">{{ ic.icon('info') }} 节点详情</div>
+      <div class="card-body" id="detailBody">
+        <div class="empty-state" style="padding:32px 8px">
+          {{ ic.icon('sitemap', 28) }}
+          <div>在左侧选择一个 OU</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('bolt') }} 快捷操作</div>
+      <div class="card-body d-grid gap-2">
+        <button class="btn btn-sm btn-primary" data-act="create" {{ 'disabled' if not d or d.status == 'offline' or not d.enabled }}>
+          {{ ic.icon('plus', 14) }} 在当前节点下新建子 OU</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="rename" disabled>
+          {{ ic.icon('edit', 14) }} 重命名 / 修改描述</button>
+        <button class="btn btn-sm btn-outline-secondary" data-act="move-users" disabled>
+          {{ ic.icon('move', 14) }} 批量迁移该 OU 下用户到其他 OU</button>
+        <button class="btn btn-sm btn-outline-danger" data-act="delete" disabled>
+          {{ ic.icon('trash', 14) }} 删除 OU</button>
+        <div class="help-text">OU 的删除属于域结构变更：非空 OU 需勾选递归删除，且会连带删除其下所有用户/组/计算机对象。</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DOMAIN_ID = {{ d.id if d else 0 }};
+const BASE_DN = {{ (d.base_dn if d else '')|tojson }};
+const RO = {{ 'true' if (not d or d.status == 'offline' or not d.enabled) else 'false' }};
+let SEL = { dn: BASE_DN, name: '域根', level: -1, desc: '' };
+
+function bindTree() {
+  // 折叠/展开独立绑定在箭头上（扩大热区 + 箭头旋转反馈），不与选中逻辑混在一起
+  document.querySelectorAll('.ou-node .caret').forEach(c => {
+    c.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const node = c.closest('.ou-node');
+      const ul = node.parentElement.querySelector('ul');
+      if (!ul) return;
+      const fold = ul.style.display !== 'none';
+      ul.style.display = fold ? 'none' : '';
+      c.classList.toggle('collapsed', fold);
+    });
+  });
+  document.querySelectorAll('.ou-node').forEach(n => {
+    n.addEventListener('click', (e) => {
+      if (e.target.closest('.caret')) return;
+      document.querySelectorAll('.ou-node').forEach(x => x.classList.remove('active'));
+      n.classList.add('active');
+      SEL = { dn: n.dataset.dn, name: n.dataset.name, level: +n.dataset.level, desc: n.dataset.desc };
+      renderDetail();
+    });
+    // 右键菜单
+    n.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll('.ou-node').forEach(x => x.classList.remove('active'));
+      n.classList.add('active');
+      SEL = { dn: n.dataset.dn, name: n.dataset.name, level: +n.dataset.level, desc: n.dataset.desc };
+      renderDetail();
+      const isRoot = SEL.level < 0;
+      ADM.contextMenu([
+        { label: '新建子 OU', onClick: () => createOU(SEL.dn, SEL.name) },
+        { label: '编辑（重命名 / 描述）', disabled: RO || isRoot, onClick: renameOU },
+        '-',
+        { label: '批量迁移用户', disabled: RO || isRoot, onClick: moveUsersOU },
+        { label: '查看该 OU 用户', onClick: () => location.href = '/users/?domain_id=' + DOMAIN_ID + '&ou_dn=' + encodeURIComponent(SEL.dn) },
+        '-',
+        { label: '删除 OU', danger: true, disabled: RO || isRoot, onClick: deleteOU },
+      ], e.clientX, e.clientY);
+    });
+  });
+}
+
+function renderDetail() {
+  const isRoot = SEL.level < 0;
+  document.getElementById('detailBody').innerHTML =
+    '<div class="kv">' +
+    '<dt>名称</dt><dd>' + ADM.esc(SEL.name) + (isRoot ? ' <span class="badge-soft gray">虚拟根</span>' : '') + '</dd>' +
+    '<dt>层级</dt><dd>' + (isRoot ? '—' : SEL.level + 1) + '</dd>' +
+    '<dt>描述</dt><dd>' + (ADM.esc(SEL.desc) || '—') + '</dd>' +
+    '<dt>DN</dt><dd class="mono" style="font-size:11.5px">' + ADM.esc(SEL.dn) + '</dd>' +
+    '</div>' +
+    (isRoot ? '<div class="help-text mt-2">域根为虚拟节点，不可重命名或删除；可在其下创建 OU。</div>' : '') +
+    '<div class="d-flex gap-1 mt-3 flex-wrap">' +
+    '<button class="btn btn-sm btn-primary" data-child {{ 'disabled' if RO }}>新建子 OU</button>' +
+    '<a class="btn btn-sm btn-light border" href="/users/?domain_id=' + DOMAIN_ID + '&ou_dn=' + encodeURIComponent(SEL.dn) + '">查看该 OU 用户</a>' +
+    '</div>';
+  document.querySelectorAll('[data-act=rename],[data-act=delete],[data-act=move-users]').forEach(b => {
+    b.disabled = RO || isRoot;
+  });
+  const childBtn = document.querySelector('[data-child]');
+  if (childBtn) childBtn.onclick = () => createOU(SEL.dn, SEL.name);
+}
+
+async function ouOptions(excludeDn) {
+  const r = await ADM.get('/ous/api/options?domain_id=' + DOMAIN_ID, { silent: true });
+  if (!r.ok) return '';
+  return r.data.filter(o => o.dn !== excludeDn && !o.dn.endsWith(',' + excludeDn))
+    .map(o => '<option value="' + ADM.esc(o.dn) + '">' +
+      '&nbsp;'.repeat(Math.max(0, o.depth) * 2) + ADM.esc(o.name) + '</option>').join('');
+}
+
+document.querySelectorAll('[data-new-root]').forEach(b => b.addEventListener('click', () => {
+  createOU(BASE_DN, '域根');
+}));
+
+document.querySelector('[data-act=create]').addEventListener('click', () => {
+  createOU(SEL.dn, SEL.name);
+});
+
+function createOU(parentDn, parentName) {
+  ADM.formModal({
+    title: '在「' + parentName + '」下新建 OU',
+    body: '<div class="mb-3"><label class="form-label">上级 OU</label>' +
+          '<input class="form-control" value="' + ADM.esc(parentDn) + '" disabled></div>' +
+          '<div class="mb-3"><label class="form-label">OU 名称 <span class="text-danger">*</span></label>' +
+          '<input class="form-control" name="name" placeholder="如 研发部（不建议包含 , = + 等字符）"></div>' +
+          '<div><label class="form-label">描述</label><input class="form-control" name="description"></div>',
+    okText: '创建',
+    onSubmit: async (form) => {
+      const r = await ADM.post('/ous/create', {
+        domain_id: DOMAIN_ID, parent_dn: parentDn,
+        name: form.querySelector('[name=name]').value,
+        description: form.querySelector('[name=description]').value
+      });
+      if (r.ok) setTimeout(() => location.reload(), 700);
+      return false;
+    }
+  });
+}
+
+function renameOU() {
+  ADM.formModal({
+    title: '编辑 OU',
+    body: '<div class="mb-3"><label class="form-label">名称</label>' +
+          '<input class="form-control" name="name" value="' + ADM.esc(SEL.name) + '"></div>' +
+          '<div class="mb-2"><label class="form-label">描述</label>' +
+          '<input class="form-control" name="description" value="' + ADM.esc(SEL.desc) + '"></div>' +
+          '<div class="alert alert-warning py-2 mb-0" style="font-size:12px">重命名会改变该 OU 及其所有子对象的 DN，' +
+          '系统会同步修正缓存中的 DN 与 ou_dn。</div>',
+    okText: '保存',
+    onSubmit: async (form) => {
+      const r = await ADM.post('/ous/update', {
+        domain_id: DOMAIN_ID, dn: SEL.dn,
+        name: form.querySelector('[name=name]').value,
+        description: form.querySelector('[name=description]').value
+      });
+      if (r.ok) setTimeout(() => location.reload(), 700);
+      return false;
+    }
+  });
+}
+document.querySelector('[data-act=rename]').addEventListener('click', renameOU);
+
+async function moveUsersOU() {
+  const opts = await ouOptions(SEL.dn);
+  ADM.formModal({
+    title: '批量迁移用户',
+    body: '<div class="mb-3"><label class="form-label">源 OU</label>' +
+          '<input class="form-control" value="' + ADM.esc(SEL.dn) + '" disabled></div>' +
+          '<div class="mb-2"><label class="form-label">目标 OU <span class="text-danger">*</span></label>' +
+          '<select class="form-select" name="target_ou">' + opts + '</select></div>' +
+          '<div class="help-text">迁移范围：该 OU 及其子 OU 下的全部用户（仅限同一域内）。</div>',
+    okText: '开始迁移',
+    onSubmit: async (form) => {
+      const target = form.querySelector('[name=target_ou]').value;
+      const yes = await ADM.confirmDanger({
+        title: '确认批量迁移', message: '将把该 OU 子树下的用户移动到目标 OU，用户权限与组成员关系保持不变。',
+        items: ['源：' + SEL.dn, '目标：' + target], confirmText: '开始迁移'
+      });
+      if (!yes) return false;
+      ADM.btnLoading(form.querySelector('[name=target_ou]'), true);
+      const r = await ADM.post('/ous/move-users', { domain_id: DOMAIN_ID, source_dn: SEL.dn, target_ou: target });
+      return false;
+    }
+  });
+}
+document.querySelector('[data-act=move-users]').addEventListener('click', moveUsersOU);
+
+async function deleteOU() {
+  const yes = await ADM.confirmDanger({
+    title: '删除 OU（域结构变更）',
+    message: '将从 AD 中删除该 OU。若非空（含子 OU、用户、组、计算机）必须递归删除，其下所有对象会被一并删除且不可恢复。',
+    items: ['OU：' + SEL.dn, '递归删除会连带删除子树中的所有目录对象'],
+    requireInput: SEL.name, inputHint: '请输入 OU 名称「' + SEL.name + '」以确认',
+    confirmText: '删除该 OU'
+  });
+  if (!yes) return;
+  const r = await ADM.post('/ous/delete', { domain_id: DOMAIN_ID, dn: SEL.dn, recursive: '1', confirm: '1' });
+  if (r.ok) setTimeout(() => location.reload(), 800);
+}
+document.querySelector('[data-act=delete]').addEventListener('click', deleteOU);
+
+document.getElementById('btnExpand').onclick = () =>
+  document.querySelectorAll('.ou-tree ul').forEach(u => u.style.display = '');
+document.getElementById('btnCollapse').onclick = () =>
+  document.querySelectorAll('.ou-tree ul').forEach(u => { if (u.parentElement.parentElement.tagName === 'UL' && u !== document.querySelector('.ou-tree > ul')) u.style.display = 'none'; });
+
+bindTree();
+if (DOMAIN_ID) renderDetail();
+</script>
+{% endblock %}

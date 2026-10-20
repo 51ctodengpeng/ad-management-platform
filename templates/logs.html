@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}日志审计 · {{ app_name }}{% endblock %}
+{% block page_title %}操作日志审计{% endblock %}
+{% block page_sub %}所有 AD 变更均留痕（域 / 操作人 / IP / 时间 / 内容 / 结果）· 保留 {{ retention }} 天，超期自动归档并 VACUUM{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('logs.export', domain_id=f.domain_id or '', module=f.module, result=f.result, operator=f.operator, keyword=f.keyword, date_from=f.date_from, date_to=f.date_to) }}">
+  {{ ic.icon('download', 15) }} 导出当前筛选</a>
+{% if current_user and current_user['role'] == 'super_admin' %}
+<button class="btn btn-sm btn-light border" id="btnMaintain">{{ ic.icon('refresh', 15) }} 立即归档维护</button>
+<button class="btn btn-sm btn-outline-danger" id="btnClearAll">{{ ic.icon('trash', 15) }} 全部清理</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <form class="filter-bar" method="get">
+    <select class="form-select form-select-sm" name="domain_id" style="width:200px">
+      <option value="">全部域</option>
+      {% for d in domains %}
+      <option value="{{ d.id }}" {{ 'selected' if f.domain_id == d.id }}>{{ d.name }}（{{ d.domain_name }}）</option>
+      {% endfor %}
+    </select>
+    <select class="form-select form-select-sm" name="module" style="width:130px">
+      <option value="">全部模块</option>
+      {% for k, v in modules.items() %}
+      <option value="{{ k }}" {{ 'selected' if f.module == k }}>{{ v }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select form-select-sm" name="result" style="width:110px">
+      <option value="">全部结果</option>
+      <option value="success" {{ 'selected' if f.result == 'success' }}>成功</option>
+      <option value="failed" {{ 'selected' if f.result == 'failed' }}>失败</option>
+    </select>
+    <input class="form-control form-control-sm" name="operator" value="{{ f.operator }}"
+           placeholder="操作人" style="width:120px">
+    <div class="input-group input-group-sm" style="width:200px">
+      <span class="input-group-text bg-white">{{ ic.icon('search', 14) }}</span>
+      <input class="form-control" name="keyword" value="{{ f.keyword }}" placeholder="对象 / 内容 / 动作">
+    </div>
+    <input class="form-control form-control-sm" type="date" name="date_from" value="{{ f.date_from }}" style="width:150px">
+    <span class="help-text">至</span>
+    <input class="form-control form-control-sm" type="date" name="date_to" value="{{ f.date_to }}" style="width:150px">
+    <button class="btn btn-sm btn-primary">{{ ic.icon('search', 14) }} 查询</button>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('logs.index') }}">重置</a>
+    <span class="ms-auto help-text">共 {{ total }} 条</span>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th style="width:150px">时间</th>
+          <th style="width:80px">模块</th>
+          <th style="width:150px">动作</th>
+          <th>操作对象</th>
+          <th style="width:170px">所属域</th>
+          <th style="width:100px">操作人</th>
+          <th style="width:120px">来源 IP</th>
+          <th style="width:90px">客户端</th>
+          <th style="width:70px">结果</th>
+          <th style="width:90px">耗时</th>
+          <th style="width:50px"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for l in logs %}
+        <tr>
+          <td class="mono" style="font-size:12px">{{ l['created_at'] }}</td>
+          <td><span class="badge-soft blue">{{ modules.get(l['module'], l['module']) }}</span></td>
+          <td class="mono" style="font-size:12px">{{ l['action'] }}</td>
+          <td class="text-tight" style="font-size:12px" title="{{ l['target'] }}">{{ l['target'] or '—' }}</td>
+          <td class="help-text">{{ l['domain_name'] or '—' }}</td>
+          <td style="font-size:12.5px">{{ l['operator'] or '—' }}</td>
+          <td class="mono" style="font-size:12px">{{ l['ip'] or '—' }}</td>
+          <td style="font-size:12px">{{ l['client_type'] or '—' }}</td>
+          <td>
+            {% if l['result'] == 'success' %}<span class="badge-soft green">成功</span>
+            {% else %}<span class="badge-soft red">失败</span>{% endif %}
+          </td>
+          <td class="help-text">{{ (l['duration_ms'] ~ ' ms') if l['duration_ms'] is not none else '—' }}</td>
+          <td>
+            <button class="btn btn-sm btn-light border py-0 px-1" title="查看详情"
+                    data-msg="{{ l['message'] or '' }}" data-detail="{{ l['detail'] or '' }}"
+                    data-target="{{ l['target'] or '' }}" data-action="{{ l['action'] }}">{{ ic.icon('info', 14) }}</button>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="11"><div class="empty-state">
+          {{ ic.icon('log', 32) }}<div>没有符合条件的日志</div>
+          <div class="help-text mt-1">调整筛选条件，或确认是否已过 {{ retention }} 天归档期</div>
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.pages > 1 %}
+  <div class="d-flex align-items-center gap-2 px-3 py-2" style="border-top:1px solid var(--adm-border)">
+    <span class="help-text">第 {{ page.page }}/{{ page.pages }} 页 · 共 {{ page.total }} 条</span>
+    <nav class="ms-auto"><ul class="pagination pagination-sm mb-0">
+      {% set qs = 'domain_id=' ~ (f.domain_id or '') ~ '&module=' ~ f.module ~ '&result=' ~ f.result ~ '&operator=' ~ f.operator ~ '&keyword=' ~ f.keyword ~ '&date_from=' ~ f.date_from ~ '&date_to=' ~ f.date_to %}
+      <li class="page-item {{ 'disabled' if not page.has_prev }}"><a class="page-link" href="?{{ qs }}&page={{ page.page-1 }}">上一页</a></li>
+      {% for p in range(1, page.pages + 1) %}
+        {% if p <= 2 or p > page.pages - 2 or (p - page.page)|abs <= 1 %}
+        <li class="page-item {{ 'active' if p == page.page }}"><a class="page-link" href="?{{ qs }}&page={{ p }}">{{ p }}</a></li>
+        {% elif p == 3 or p == page.pages - 2 %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if not page.has_next }}"><a class="page-link" href="?{{ qs }}&page={{ page.page+1 }}">下一页</a></li>
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-msg]').forEach(btn => btn.addEventListener('click', () => {
+  const data = { message: btn.dataset.msg, detail: btn.dataset.detail,
+                 target: btn.dataset.target, action: btn.dataset.action };
+  ADM.formModal({
+    title: '日志详情',
+    body: '<div class="kv">' +
+      '<dt>动作</dt><dd class="mono">' + ADM.esc(data.action || '') + '</dd>' +
+      '<dt>操作对象</dt><dd class="mono" style="font-size:11.5px">' + ADM.esc(data.target || '') + '</dd>' +
+      '<dt>结果说明</dt><dd>' + (ADM.esc(data.message || '') || '—') + '</dd>' +
+      '</div>' +
+      (data.detail ? '<div class="section-title">详细内容</div><div class="code-box">' + ADM.esc(data.detail) + '</div>' : ''),
+    okText: '关闭', onSubmit: () => true
+  });
+}));
+
+const bm = document.getElementById('btnMaintain');
+bm && bm.addEventListener('click', async () => {
+  const yes = await ADM.confirmDanger({
+    title: '日志归档维护',
+    message: '将把超过保留期（{{ retention }} 天）的日志导出为 CSV 归档文件后删除，并执行 VACUUM 压缩数据库。',
+    items: ['归档格式：logs/archive/*.csv.gz（gzip 压缩）', '归档后数据库中的旧日志不可再查询', 'VACUUM 会短暂锁定数据库（秒级）'],
+    requireCheck: true, confirmText: '开始维护'
+  });
+  if (!yes) return;
+  ADM.btnLoading(bm, true, '维护中…');
+  const r = await ADM.post('/logs/maintain', { confirm: '1' });
+  ADM.btnLoading(bm, false);
+  if (r.ok) setTimeout(() => location.reload(), 1200);
+});
+
+const bc = document.getElementById('btnClearAll');
+bc && bc.addEventListener('click', async () => {
+  const yes = await ADM.confirmDanger({
+    title: '全部清理操作日志',
+    message: '将删除全部操作日志（不只是过期日志），删除前会先导出归档备份。',
+    items: ['范围：全部日志（含未过期）', '删除前自动归档到 logs/archive/*.csv.gz', '清理后日志列表将为空，且不可在系统内恢复'],
+    requireInput: '全部清理', inputHint: '请输入「全部清理」以确认',
+    confirmText: '全部清理'
+  });
+  if (!yes) return;
+  ADM.btnLoading(bc, true, '清理中…');
+  const r = await ADM.post('/logs/clear', { confirm: '1', archive: '1' });
+  ADM.btnLoading(bc, false);
+  if (r.ok) setTimeout(() => location.reload(), 1200);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,128 @@
+{% import 'partials/icons.html' as ic %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d4ed8'/><text x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>AD</text></svg>">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% set ep = request.endpoint or '' %}
+<aside class="adm-sidebar">
+  <div class="adm-brand">
+    <div class="adm-brand-logo">AD</div>
+    <div>
+      <div class="adm-brand-name">AD 域控管理系统</div>
+      <div class="adm-brand-sub">Multi-Forest Admin · v{{ version }}</div>
+    </div>
+  </div>
+  <nav class="adm-nav">
+    <div class="adm-nav-title">总览</div>
+    <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if ep.startswith('dashboard.') }}">
+      {{ ic.icon('dashboard') }} <span>仪表盘</span></a>
+    {% if lic_features.alerts and 'view' in rbac_perms.get('alerts', []) %}
+    <a href="{{ url_for('alerts.index') }}" class="{{ 'active' if ep.startswith('alerts.') }}">
+      {{ ic.icon('alert') }} <span>告警中心</span></a>
+    {% endif %}
+    <div class="adm-nav-title">域与信任</div>
+    {% if 'view' in rbac_perms.get('domain', []) %}
+    <a href="{{ url_for('domain.index') }}" class="{{ 'active' if ep.startswith('domain.') }}">
+      {{ ic.icon('server') }} <span>多域管理</span></a>
+    {% endif %}
+    {% if lic_features.health and 'view' in rbac_perms.get('health', []) %}
+    <a href="{{ url_for('health.index') }}" class="{{ 'active' if ep.startswith('health.') }}">
+      {{ ic.icon('bolt') }} <span>健康监控</span></a>
+    {% endif %}
+    {% if lic_features.security_center and 'view' in rbac_perms.get('security', []) %}
+    <a href="{{ url_for('security.index') }}" class="{{ 'active' if ep.startswith('security.') }}">
+      {{ ic.icon('shield') }} <span>安全中心</span></a>
+    {% endif %}
+    {% if lic_features.trust and 'view' in rbac_perms.get('trust', []) %}
+    <a href="{{ url_for('trust.index') }}" class="{{ 'active' if ep.startswith('trust.') }}">
+      {{ ic.icon('link') }} <span>林间信任</span></a>
+    {% endif %}
+    <div class="adm-nav-title">目录对象</div>
+    {% if 'view' in rbac_perms.get('user', []) %}
+    <a href="{{ url_for('users.index') }}" class="{{ 'active' if ep.startswith('users.') }}">
+      {{ ic.icon('users') }} <span>用户管理</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('ou', []) %}
+    <a href="{{ url_for('ou.index') }}" class="{{ 'active' if ep.startswith('ou.') }}">
+      {{ ic.icon('sitemap') }} <span>部门 OU</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('group', []) %}
+    <a href="{{ url_for('groups.index') }}" class="{{ 'active' if ep.startswith('groups.') }}">
+      {{ ic.icon('group') }} <span>用户组</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('computer', []) %}
+    <a href="{{ url_for('computers.index') }}" class="{{ 'active' if ep.startswith('computers.') }}">
+      {{ ic.icon('monitor') }} <span>域计算机</span></a>
+    {% endif %}
+    <div class="adm-nav-title">审计与系统</div>
+    {% if 'view' in rbac_perms.get('log', []) %}
+    <a href="{{ url_for('logs.index') }}" class="{{ 'active' if ep.startswith('logs.') }}">
+      {{ ic.icon('log') }} <span>日志审计</span></a>
+    {% endif %}
+    {% if lic_features.recycle and 'view' in rbac_perms.get('recycle', []) %}
+    <a href="{{ url_for('recycle.index') }}" class="{{ 'active' if ep.startswith('recycle.') }}">
+      {{ ic.icon('trash') }} <span>回收站</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('license', []) %}
+    <a href="{{ url_for('license.index') }}" class="{{ 'active' if ep.startswith('license.') }}">
+      {{ ic.icon('key') }} <span>授权信息</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('email_alert', []) %}
+    <a href="{{ url_for('config.email_alert') }}" class="{{ 'active' if ep.startswith('config.email_alert') }}">
+      {{ ic.icon('mail') }} <span>邮箱告警</span></a>
+    {% endif %}
+    {% if 'view' in rbac_perms.get('config', []) %}
+    <a href="{{ url_for('config.index') }}" class="{{ 'active' if ep.startswith('config.') and not ep.startswith('config.email_alert') }}">
+      {{ ic.icon('settings') }} <span>系统设置</span></a>
+    {% endif %}
+  </nav>
+  <div class="adm-sidebar-foot">
+    <div>PowerShell 中文社区团队 · 开发</div>
+    <div>技术支持：www.powershell.com.cn</div>
+  </div>
+</aside>
+
+<div class="adm-main">
+  <header class="adm-topbar">
+    <button class="adm-hamburger" aria-label="菜单">{{ ic.icon('sitemap', 20) }}</button>
+    <div>
+      <h1 class="adm-page-title">{% block page_title %}{% endblock %}</h1>
+      <div class="adm-page-sub">{% block page_sub %}{% endblock %}</div>
+    </div>
+    <div class="spacer"></div>
+    {% block topbar_actions %}{% endblock %}
+    <a class="adm-user" href="{{ url_for('auth.profile') }}">
+      <span class="avatar">{{ (current_user['username'][0] if current_user else '?')|upper }}</span>
+      <span>{{ current_user['display_name'] or current_user['username'] if current_user }}</span>
+      <span class="badge-soft blue">{{ role_names.get(current_user['role'], '') if current_user }}</span>
+    </a>
+    <a href="#" class="btn btn-sm btn-outline-secondary" data-action="logout" title="退出登录">
+      {{ ic.icon('logout', 15) }}
+    </a>
+  </header>
+  <main class="adm-content">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="adm-footer">
+    <div>
+      © 2026 <b>PowerShell 中文社区团队</b> 版权所有 ｜
+      <a href="https://www.powershell.com.cn" target="_blank">www.powershell.com.cn</a> ｜
+      <a href="mailto:dengpeng@powershell.com.cn">dengpeng@powershell.com.cn</a>
+    </div>
+  </footer>
+</div>
+
+<script>window.__SESSION_TIMEOUT = {{ session_timeout_minutes|default(30) }};</script>
+<script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

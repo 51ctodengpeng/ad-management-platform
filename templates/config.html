@@ -1,0 +1,623 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}系统设置 · {{ app_name }}{% endblock %}
+{% block page_title %}系统设置{% endblock %}
+{% block page_sub %}运维账号 · 定时任务 · 数据库与运行参数（仅超级管理员可见）{% endblock %}
+
+{% block content %}
+<div class="stat-grid mb-3">
+  <div class="stat blue">
+    <div class="sicon">{{ ic.icon('users', 20) }}</div>
+    <div><div class="sval">{{ stats.domains }}</div><div class="slabel">已登记域</div></div>
+  </div>
+  <div class="stat purple">
+    <div class="sicon">{{ ic.icon('users', 20) }}</div>
+    <div><div class="sval">{{ '{:,}'.format(stats.users_cached) }}</div><div class="slabel">用户缓存记录</div></div>
+  </div>
+  <div class="stat gray">
+    <div class="sicon">{{ ic.icon('log', 20) }}</div>
+    <div><div class="sval">{{ '{:,}'.format(stats.logs) }}</div><div class="slabel">审计日志条数</div></div>
+  </div>
+  <div class="stat green">
+    <div class="sicon">{{ ic.icon('server', 20) }}</div>
+    <div><div class="sval">{{ (stats.db_size / 1048576) | round(1) }} MB</div>
+      <div class="slabel">数据库大小 · {{ stats.journal_mode }}</div></div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs adm-tabs mb-3" id="cfgTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabAccounts" type="button">
+    {{ ic.icon('users', 15) }} 账号与安全</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRoles" type="button">
+    {{ ic.icon('shield', 15) }} 角色权限</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabJobs" type="button">
+    {{ ic.icon('clock', 15) }} 任务与维护</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabParams" type="button">
+    {{ ic.icon('settings', 15) }} 运行参数</button></li>
+</ul>
+
+<div class="tab-content">
+  <!-- ============ 账号与安全 ============ -->
+  <div class="tab-pane fade show active" id="tabAccounts">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header">{{ ic.icon('users') }} 运维账号（本系统登录账号，非 AD 账号）
+            <button class="btn btn-sm btn-primary ms-auto" id="btnNewUser">{{ ic.icon('plus', 14) }} 新增账号</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead><tr>
+                <th>账号</th><th>显示名称</th><th>角色</th><th>状态</th><th>有效期</th><th>最后登录</th><th style="width:190px">操作</th>
+              </tr></thead>
+              <tbody>
+              {% for u in users %}
+                <tr data-id="{{ u['id'] }}" data-username="{{ u['username'] }}"
+                    data-status="{{ u['status'] }}" data-role="{{ u['role'] }}"
+                    data-display="{{ u['display_name'] or '' }}" data-expires="{{ u['account_expires'] or '' }}"
+                    data-self="{{ '1' if current_user and u['id'] == current_user['id'] else '0' }}">
+                  <td class="fw-semibold">{{ u['username'] }}
+                    {% if current_user and u['id'] == current_user['id'] %}<span class="badge-soft blue ms-1">当前登录</span>{% endif %}
+                  </td>
+                  <td>{{ u['display_name'] or '—' }}</td>
+                  <td><span class="badge-soft {{ 'purple' if u['role'] == 'super_admin' else 'gray' }}">
+                    {{ role_map.get(u['role'], role_names.get(u['role'], u['role'])) }}</span></td>
+                  <td>{% if u['status'] %}<span class="badge-soft green">启用</span>
+                      {% else %}<span class="badge-soft gray">停用</span>{% endif %}</td>
+                  <td class="help-text">
+                    {% if u['account_expires'] %}
+                      {% if u['account_expires'] < now_str %}<span class="text-danger">已过期</span>
+                      {% else %}{{ u['account_expires'][:16] }}{% endif %}
+                    {% else %}<span class="badge-soft gray">永久</span>{% endif %}
+                  </td>
+                  <td class="help-text">{{ u['last_login_at'] or '从未' }}
+                    {% if u['last_login_ip'] %}<div>{{ u['last_login_ip'] }}</div>{% endif %}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-light border" data-act="edit">编辑</button>
+                      <button class="btn btn-light border" data-act="reset">重置密码</button>
+                      <button class="btn btn-light border" data-act="toggle"
+                              {{ 'disabled' if current_user and u['id'] == current_user['id'] }}>
+                        {{ '停用' if u['status'] else '启用' }}</button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="card-body help-text" style="border-top:1px solid var(--adm-border)">
+            超级管理员可管理域配置与系统设置；普通运维只能执行 AD 日常运维操作（不能管理系统账号与维护日志）。
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header">{{ ic.icon('clock') }} 会话安全</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">登录会话超时（无操作自动退出）</label>
+              <select class="form-select" id="secTimeout">
+                {% for c in session_cfg.choices %}
+                <option value="{{ c }}" {{ 'selected' if session_cfg.timeout == c }}>{{ c }} 分钟</option>
+                {% endfor %}
+                <option value="0" {{ 'selected' if session_cfg.timeout == 0 }}>永不超时</option>
+              </select>
+              <div class="form-text">默认 30 分钟；超时后该会话自动失效，下次操作将退出登录</div>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="secConcurrent"
+                     {{ 'checked' if session_cfg.allow_concurrent }}>
+              <label class="form-check-label" for="secConcurrent">允许多个设备使用同一账号同时登录</label>
+            </div>
+            <div class="form-text mb-3">关闭后，新登录会把该账号在其它设备上的已登录会话挤下线</div>
+            <button class="btn btn-sm btn-primary" id="btnSaveSecurity">{{ ic.icon('save', 14) }} 保存设置</button>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">{{ ic.icon('lock') }} 登录安全与密码恢复</div>
+          <div class="card-body">
+            <div class="row g-2 mb-2">
+              <div class="col-6"><label class="form-label">连续失败锁定阈值</label>
+                <input class="form-control" type="number" id="loginMaxFail" value="{{ login_cfg.max_fail }}" min="3" max="20">
+                <div class="form-text">连续输错 N 次临时锁定（默认 5 次）</div></div>
+              <div class="col-6"><label class="form-label">锁定时长（秒）</label>
+                <input class="form-control" type="number" id="loginLockSec" value="{{ login_cfg.lock_seconds }}" min="60" max="3600">
+                <div class="form-text">默认 300 秒 = 5 分钟</div></div>
+            </div>
+            <div class="section-title">密码恢复方式（登录页「忘记密码」）</div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="recoverLic" {{ 'checked' if login_cfg.allow_license }}>
+              <label class="form-check-label" for="recoverLic">允许「导入许可」重置密码</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="recoverQ" {{ 'checked' if login_cfg.allow_questions }}>
+              <label class="form-check-label" for="recoverQ">允许「密保问题」重置密码</label>
+            </div>
+            <div class="section-title">密保问题（答案留空 = 不修改该槽位）</div>
+            {% for q in login_cfg.questions %}
+            <div class="row g-2 mb-1">
+              <div class="col-7"><input class="form-control form-control-sm" id="q{{ q.slot }}" list="qpresets"
+                                         value="{{ q.question }}" placeholder="问题 {{ q.slot }}"></div>
+              <div class="col-5"><input class="form-control form-control-sm" type="password" id="a{{ q.slot }}"
+                                         placeholder="{{ '已设置（留空不修改）' if q.answered else '答案' }}"></div>
+            </div>
+            {% endfor %}
+            <datalist id="qpresets">
+              {% for p in login_cfg.question_presets %}<option value="{{ p }}"></option>{% endfor %}
+            </datalist>
+            <button class="btn btn-sm btn-primary mt-2" id="btnSaveLogin">{{ ic.icon('save', 14) }} 保存设置</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 任务与维护 ============ -->
+  <div class="tab-pane fade" id="tabJobs">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header">{{ ic.icon('clock') }} 定时任务
+            <button class="btn btn-sm btn-light border ms-auto" id="btnReloadJobs">{{ ic.icon('refresh', 14) }} 刷新</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="jobTable">
+              <thead><tr><th>任务 ID</th><th>名称</th><th>触发规则</th><th>下次执行</th></tr></thead>
+              <tbody>
+              {% for j in jobs %}
+                <tr><td class="mono" style="font-size:11.5px">{{ j.id }}</td>
+                  <td>{{ j.name }}</td>
+                  <td class="help-text" style="font-size:11.5px">{{ j.trigger }}</td>
+                  <td class="mono" style="font-size:12px">{{ j.next_run }}</td></tr>
+              {% else %}
+                <tr><td colspan="4" class="help-text text-center py-3">调度器未启动</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="card-body help-text" style="border-top:1px solid var(--adm-border)">
+            每个域拥有独立的增量同步任务（默认 15 分钟，基于 uSNChanged）；每日 02:00 执行全量同步与脏数据清理；
+            每 30 分钟刷新林信任状态；每日 03:10 归档过期日志。
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header">{{ ic.icon('shield') }} 数据维护</div>
+          <div class="card-body d-grid gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="btnPrune">清理 7 天前的任务队列记录</button>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('logs.index') }}">前往日志审计（归档 / VACUUM）</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('domain.index') }}">前往多域管理（同步 / 连通测试）</a>
+          </div>
+          <div class="card-body help-text" style="border-top:1px solid var(--adm-border)">
+            本系统缓存可按需重建：删除某个域的缓存后执行一次全量同步即可恢复，不会影响 AD 数据。
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">{{ ic.icon('save') }} 备份与还原</div>
+          <div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <button class="btn btn-sm btn-primary" id="btnBackup">{{ ic.icon('download', 14) }} 立即备份并下载</button>
+              <span class="help-text">打包数据库、加密密钥与元数据为 zip</span>
+            </div>
+            <label class="form-label">从备份还原</label>
+            <input class="form-control form-control-sm" type="file" id="restoreFile" accept=".zip">
+            <button class="btn btn-sm btn-outline-danger mt-2" id="btnRestore" disabled>{{ ic.icon('upload', 14) }} 上传并还原</button>
+            <span class="help-text align-self-center ms-2" id="restoreMsg"></span>
+            <div class="help-text mt-3" style="line-height:1.8">
+              备份范围：<b>全部配置数据</b>（运维账号、角色权限、许可授权、域配置、缓存、审计日志）+ <b>加密密钥</b>（缺失则域凭据无法解密）。<br>
+              还原为<b>整体覆盖</b>当前数据（非合并）；还原前会自动做一次快照存到
+              <code class="mono">database/backups/</code> 供回滚。旧版本备份缺的字段会自动补齐。
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">{{ ic.icon('warn') }} 架构约束（铁律）</div>
+          <div class="card-body" style="font-size:12.5px;line-height:1.9">
+            1. 所有增删改 / 重置密码 / 移动 OU / 建信任 <b>直连真实 AD 域控</b>；<br>
+            2. 仅当 AD 操作成功后，才更新该对象的 SQLite 缓存单行；<br>
+            3. 所有列表、搜索、分页、筛选、仪表盘统计、导出 <b>只读缓存</b>，绝不实时查 AD；<br>
+            4. 域离线时该域变为只读（写按钮禁用），其他域不受影响。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 运行参数 ============ -->
+  <div class="tab-pane fade" id="tabParams">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">{{ ic.icon('settings') }} 运行参数</div>
+          <div class="card-body">
+            <div class="kv">
+              <dt>程序版本</dt><dd>{{ version }}</dd>
+              <dt>监听地址</dt><dd class="mono">{{ cfg.SERVER_HOST }}:{{ cfg.SERVER_PORT }}</dd>
+              <dt>数据库</dt><dd class="mono" style="font-size:11.5px">{{ cfg.DB_PATH }}</dd>
+              <dt>日志目录</dt><dd class="mono" style="font-size:11.5px">{{ cfg.LOG_DIR }}</dd>
+              <dt>域名上限</dt><dd>{{ cfg.MAX_DOMAINS }} 个域 / {{ cfg.MAX_USERS_PER_DOMAIN }} 用户每域</dd>
+              <dt>同步批量</dt><dd>每 {{ cfg.SYNC_BATCH_SIZE }} 行提交一次事务</dd>
+              <dt>增量间隔</dt><dd>{{ cfg.SYNC_INCREMENT_INTERVAL_MIN }} 分钟 · 全量 {{ '%02d:00' % cfg.SYNC_FULL_HOUR }}</dd>
+              <dt>会话超时</dt><dd>{% if session_cfg.timeout == 0 %}永不超时{% else %}{{ session_cfg.timeout }} 分钟无操作自动退出{% endif %}</dd>
+              <dt>日志保留</dt><dd>{{ cfg.LOG_RETENTION_DAYS }} 天（超期归档 + VACUUM）</dd>
+              <dt>连接超时</dt><dd>{{ cfg.AD_CONNECT_TIMEOUT }} 秒</dd>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 角色权限 ============ -->
+  <div class="tab-pane fade" id="tabRoles">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('shield') }} 角色与权限
+        <button class="btn btn-sm btn-primary ms-auto" id="btnNewRole">{{ ic.icon('plus', 14) }} 新增角色</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>角色</th><th>说明</th><th>数据范围</th><th>权限模块数</th><th style="width:160px">操作</th>
+          </tr></thead>
+          <tbody id="roleTable">
+          {% for r in roles %}
+            <tr data-key="{{ r.key }}" data-isbuiltin="{{ r.is_builtin }}">
+              <td class="fw-semibold">{{ r.display_name }}
+                {% if r.is_builtin %}<span class="badge-soft blue ms-1">内置</span>{% endif %}
+                <div class="help-text mono" style="font-size:11px">{{ r.key }}</div></td>
+              <td style="font-size:12.5px">{{ r.description or '—' }}</td>
+              <td>{% if r.scope_type == 'all' %}<span class="badge-soft gray">全部域</span>
+                  {% else %}<span class="badge-soft purple">指定域（{{ r.scope_domains|length }}）</span>{% endif %}</td>
+              <td>{{ r.permissions|length }} / {{ rbac_modules|length }}</td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-light border" data-act="edit-role" {{ 'disabled' if r.is_builtin }}>编辑</button>
+                  <button class="btn btn-light border" data-act="del-role" {{ 'disabled' if r.is_builtin }}>删除</button>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body help-text" style="border-top:1px solid var(--adm-border)">
+        内置角色权限固定不可改；自定义角色可分配「模块 × 操作」权限与数据范围（全部域 / 指定域）。
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnNewUser').addEventListener('click', () => {
+  ADM.formModal({
+    title: '新增运维账号',
+    body: '<div class="mb-3"><label class="form-label">登录名 <span class="text-danger">*</span></label>' +
+          '<input class="form-control" name="username" placeholder="字母数字，3-32 位"></div>' +
+          '<div class="mb-3"><label class="form-label">显示名称</label><input class="form-control" name="display_name"></div>' +
+          '<div class="mb-3"><label class="form-label">角色</label><select class="form-select" name="role">' +
+          {% for r in roles %}'<option value="{{ r.key }}">{{ r.display_name }}</option>' +{% endfor %}
+          '</select></div>' +
+          '<div class="mb-2"><label class="form-label">初始密码</label>' +
+          '<div class="input-group"><input class="form-control" id="initPwd" name="password" value="' + ADM.randomPassword(12) + '">' +
+          '<button class="btn btn-outline-secondary" type="button" onclick="ADM.togglePwd(\'initPwd\', this)">显示</button></div>' +
+          '<div class="form-text">留空则自动生成；密码不会写入日志</div></div>',
+    okText: '创建',
+    onSubmit: async (form) => {
+      const r = await ADM.post('/config/users/create', ADM.formData(form), { silent: true });
+      if (!r.ok) { ADM.err(r.message || '创建失败'); return false; }
+      ADM.formModal({
+        title: '账号已创建',
+        body: '<div class="mb-2">登录名：<b>' + ADM.esc(form.querySelector('[name=username]').value) + '</b></div>' +
+              '<label class="form-label">初始密码（仅显示一次）</label>' +
+              '<div class="pwd-reveal">' + ADM.esc((r.data && r.data.password) || '') + '</div>',
+        okText: '完成', onSubmit: () => { location.reload(); return true; }
+      });
+      return false;
+    }
+  });
+});
+
+document.querySelectorAll('#jobTable').forEach(() => {});
+
+// 编辑运维账号（显示名 / 角色身份 / 有效期）
+function editSysUser(tr) {
+  const uid = tr.dataset.id, username = tr.dataset.username;
+  const isSelf = tr.dataset.self === '1';
+  const expires = tr.dataset.expires || '';
+  const roleOpts = ROLES_DATA.map(r => '<option value="' + r.key + '"' + (r.key === tr.dataset.role ? ' selected' : '') + '>' + ADM.esc(r.display_name) + '</option>').join('');
+  ADM.formModal({
+    title: '编辑账号 · ' + username,
+    body: '<div class="mb-3"><label class="form-label">显示名称</label>' +
+          '<input class="form-control" name="display_name" value="' + ADM.esc(tr.dataset.display) + '"></div>' +
+          '<div class="mb-3"><label class="form-label">角色身份</label>' +
+          '<select class="form-select" name="role" ' + (isSelf ? 'disabled' : '') + '>' + roleOpts + '</select>' +
+          (isSelf ? '<div class="form-text">不能修改自己的角色（防止降权）</div>' : '') + '</div>' +
+          '<div class="mb-2"><label class="form-label">账号有效期</label>' +
+          '<div class="form-check form-switch mb-1">' +
+          '<input class="form-check-input" type="checkbox" id="permExpires" ' + (expires ? '' : 'checked') +
+          ' onchange="document.getElementById(\'expiresInput\').disabled = this.checked">' +
+          '<label class="form-check-label" for="permExpires">永久有效</label></div>' +
+          '<input class="form-control" type="datetime-local" name="account_expires" id="expiresInput" ' +
+          'value="' + (expires ? expires.slice(0, 16) : '') + '" ' + (expires ? '' : 'disabled') + '></div>',
+    okText: '保存',
+    onSubmit: async (form) => {
+      const perm = form.querySelector('#permExpires').checked;
+      const data = { display_name: form.querySelector('[name=display_name]').value.trim() };
+      if (!isSelf) data.role = form.querySelector('[name=role]').value;
+      data.account_expires = perm ? '' : form.querySelector('[name=account_expires]').value;
+      const r = await ADM.post('/config/users/' + uid + '/update', data, { silent: true });
+      if (!r.ok) { ADM.err(r.message || '保存失败'); return false; }
+      setTimeout(() => location.reload(), 600);
+      return true;
+    }
+  });
+}
+
+document.querySelectorAll('tbody tr[data-username] [data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  const tr = btn.closest('tr');
+  const uid = tr.dataset.id, username = tr.dataset.username;
+  if (btn.dataset.act === 'edit') {
+    editSysUser(tr);
+  } else if (btn.dataset.act === 'reset') {
+    const fm = ADM.formModal({
+      title: '重置运维账号密码 · ' + username,
+      body: '<div class="mb-2"><label class="form-label">新密码</label>' +
+            '<div class="input-group"><input class="form-control" id="resetPwd" name="password" value="' + ADM.randomPassword(12) + '">' +
+            '<button class="btn btn-outline-secondary" type="button" id="btnResetGen">随机</button>' +
+            '<button class="btn btn-outline-secondary" type="button" onclick="ADM.togglePwd(\'resetPwd\', this)">显示</button></div>' +
+            '<div class="form-text">可直接手动输入自定义密码，或点击「随机」生成；至少 8 位，密码不会写入日志</div></div>',
+      okText: '重置密码',
+      onSubmit: async (form) => {
+        const pwdVal = form.querySelector('#resetPwd').value;
+        if (!pwdVal) { ADM.err('密码不能为空'); return false; }
+        const yes = await ADM.confirmDanger({
+          title: '确认重置密码', message: '将重置该运维人员的系统登录密码，原密码立即失效。',
+          items: ['账号：' + username, '新密码：' + pwdVal], confirmText: '确认重置'
+        });
+        if (!yes) return false;
+        const r = await ADM.post('/config/users/' + uid + '/reset',
+          { password: pwdVal, confirm: '1' }, { silent: true });
+        if (!r.ok) { ADM.err(r.message || '重置失败'); return false; }
+        ADM.formModal({
+          title: '密码已重置',
+          body: '<div class="mb-2">账号：<b>' + ADM.esc(username) + '</b></div>' +
+                '<label class="form-label">新密码（仅显示一次，请立即告知使用人）</label>' +
+                '<div class="pwd-reveal">' + ADM.esc((r.data && r.data.password) || '') + '</div>',
+          okText: '完成', onSubmit: () => { location.reload(); return true; }
+        });
+        return true;
+      }
+    });
+    // 绑定「随机」按钮：直接用 formModal 返回的 form 定位元素
+    const resetPwdInput = fm.form.querySelector('#resetPwd');
+    const resetGenBtn = fm.form.querySelector('#btnResetGen');
+    if (resetGenBtn && resetPwdInput) resetGenBtn.onclick = () => { resetPwdInput.value = ADM.randomPassword(12); };
+  } else {
+    const enabled = tr.dataset.status === '1';
+    const yes = await ADM.confirmDanger({
+      title: enabled ? '停用运维账号' : '启用运维账号',
+      message: enabled ? '停用后该账号将无法登录本系统。' : '启用后该账号可重新登录本系统。',
+      items: ['账号：' + username], confirmText: enabled ? '停用' : '启用'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/config/users/' + uid + '/toggle', { enabled: enabled ? '0' : '1' });
+    if (r.ok) setTimeout(() => location.reload(), 700);
+  }
+}));
+
+// 运维账号右键菜单
+document.querySelectorAll('tbody tr[data-username]').forEach(tr => tr.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const enabled = tr.dataset.status === '1';
+  const isSelf = tr.dataset.self === '1';
+  ADM.contextMenu([
+    { label: '编辑账号', onClick: () => editSysUser(tr) },
+    { label: '重置密码', onClick: () => tr.querySelector('[data-act=reset]').click() },
+    '-',
+    { label: enabled ? '停用账号' : '启用账号', disabled: isSelf,
+      onClick: () => tr.querySelector('[data-act=toggle]').click() },
+  ], e.clientX, e.clientY);
+}));
+
+document.getElementById('btnReloadJobs').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  ADM.btnLoading(btn, true, '…');
+  const r = await ADM.get('/config/jobs', { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) return;
+  document.querySelector('#jobTable tbody').innerHTML = r.data.map(j =>
+    '<tr><td class="mono" style="font-size:11.5px">' + ADM.esc(j.id) + '</td><td>' + ADM.esc(j.name) +
+    '</td><td class="help-text" style="font-size:11.5px">' + ADM.esc(j.trigger) +
+    '</td><td class="mono" style="font-size:12px">' + ADM.esc(j.next_run) + '</td></tr>').join('') ||
+    '<tr><td colspan="4" class="help-text text-center py-3">调度器未启动</td></tr>';
+  ADM.ok('任务列表已刷新');
+});
+
+document.getElementById('btnPrune').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const yes = await ADM.confirmDanger({
+    title: '清理历史任务记录', message: '仅删除已完成/失败且超过 7 天的任务队列记录，不影响 AD 数据与审计日志。',
+    requireCheck: false, confirmText: '清理'
+  });
+  if (!yes) return;
+  ADM.btnLoading(btn, true, '清理中…');
+  const r = await ADM.post('/config/prune-tasks', {});
+  ADM.btnLoading(btn, false);
+});
+
+// ---------------- 备份与还原 ----------------
+document.getElementById('btnBackup').addEventListener('click', () => {
+  window.location.href = '/config/backup';
+});
+
+const restoreInput = document.getElementById('restoreFile');
+const restoreBtn = document.getElementById('btnRestore');
+const restoreMsg = document.getElementById('restoreMsg');
+restoreInput.addEventListener('change', () => {
+  restoreBtn.disabled = !restoreInput.files || restoreInput.files.length === 0;
+  restoreMsg.textContent = restoreInput.files && restoreInput.files[0]
+    ? '已选择：' + restoreInput.files[0].name : '';
+});
+
+restoreBtn.addEventListener('click', async () => {
+  const f = restoreInput.files && restoreInput.files[0];
+  if (!f) { ADM.err('请先选择备份文件'); return; }
+  const yes = await ADM.confirmDanger({
+    title: '从备份还原',
+    message: '将用备份包整体覆盖当前所有数据（账号、角色、许可、域配置、缓存、审计日志），此操作不可撤销。',
+    items: ['文件：' + f.name],
+    requireCheck: false, confirmText: '确认还原'
+  });
+  if (!yes) return;
+  ADM.btnLoading(restoreBtn, true, '还原中…');
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('confirm', '1');
+  const r = await ADM.upload('/config/backup/restore', fd, { silent: true });
+  ADM.btnLoading(restoreBtn, false);
+  if (r.ok) {
+    restoreMsg.textContent = (r.message || '还原成功') + '，请稍候自动刷新';
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    restoreMsg.textContent = r.message || '还原失败';
+  }
+});
+
+document.getElementById('btnSaveSecurity').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const t = document.getElementById('secTimeout').value;
+  const allow = document.getElementById('secConcurrent').checked ? '1' : '0';
+  ADM.btnLoading(btn, true, '保存中…');
+  const r = await ADM.post('/config/security/save', { session_timeout_minutes: t, allow_concurrent_login: allow });
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 800);
+});
+
+document.getElementById('btnSaveLogin').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const data = {
+    login_max_fail: document.getElementById('loginMaxFail').value,
+    login_lock_seconds: document.getElementById('loginLockSec').value,
+    recovery_allow_license: document.getElementById('recoverLic').checked ? '1' : '0',
+    recovery_allow_questions: document.getElementById('recoverQ').checked ? '1' : '0',
+  };
+  for (let i = 1; i <= 3; i++) {
+    data['q' + i] = document.getElementById('q' + i).value;
+    data['a' + i] = document.getElementById('a' + i).value;
+  }
+  ADM.btnLoading(btn, true, '保存中…');
+  const r = await ADM.post('/config/login/save', data, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 800);
+});
+
+// ---------------- 角色权限管理 ----------------
+const RBAC_MODULES = {{ rbac_modules|tojson }};
+const RBAC_ACTIONS = {{ rbac_action_names|tojson }};
+const ALL_DOMAINS = {{ all_domains|tojson }};
+const ROLES_DATA = {{ roles|tojson }};
+
+function permCheckAll(btn, checked) {
+  btn.closest('form').querySelectorAll('input.perm-check').forEach(c => { c.checked = checked; });
+}
+function permRowToggle(td) {
+  const checks = td.closest('tr').querySelectorAll('input.perm-check');
+  const all = Array.from(checks).every(c => c.checked);
+  checks.forEach(c => { c.checked = !all; });
+}
+
+function roleEditor(role) {
+  const isEdit = !!role;
+  let permHtml = '<div class="d-flex align-items-center gap-1 mb-2">' +
+    '<button type="button" class="btn btn-sm btn-light border" onclick="permCheckAll(this, true)">全选</button>' +
+    '<button type="button" class="btn btn-sm btn-light border" onclick="permCheckAll(this, false)">全不选</button>' +
+    '<span class="help-text ms-1">点击模块名可整行勾选/取消</span></div>' +
+    '<div class="table-responsive" style="max-height:320px"><table class="table table-sm table-bordered mb-0">' +
+    '<thead><tr><th style="min-width:110px">模块</th>';
+  Object.keys(RBAC_ACTIONS).forEach(a => { permHtml += '<th class="text-center" style="font-size:11px">' + RBAC_ACTIONS[a] + '</th>'; });
+  permHtml += '</tr></thead><tbody>';
+  Object.keys(RBAC_MODULES).forEach(m => {
+    const cfg = RBAC_MODULES[m];
+    permHtml += '<tr><td style="font-size:12.5px;cursor:pointer" class="perm-row" onclick="permRowToggle(this)">' + cfg.name + '</td>';
+    cfg.actions.forEach(a => {
+      const checked = role && (role.permissions[m] || []).indexOf(a) >= 0 ? 'checked' : '';
+      permHtml += '<td class="text-center"><input class="form-check-input perm-check" type="checkbox" name="perm_' + m + '_' + a + '" ' + checked + '></td>';
+    });
+    permHtml += '</tr>';
+  });
+  permHtml += '</tbody></table></div>';
+
+  const scopeAll = !role || role.scope_type === 'all';
+  const selDomains = role ? (role.scope_domains || []) : [];
+  let domainOpts = ALL_DOMAINS.map(d =>
+    '<option value="' + d.id + '"' + (selDomains.indexOf(d.id) >= 0 ? ' selected' : '') + '>' +
+    ADM.esc(d.name) + '（' + ADM.esc(d.domain_name) + '）</option>').join('');
+
+  ADM.formModal({
+    title: isEdit ? '编辑角色：' + role.display_name : '新增角色',
+    size: 'modal-lg',
+    body: '<div class="row g-2 mb-2">' +
+      '<div class="col-4"><label class="form-label">角色标识</label>' +
+      '<input class="form-control mono" name="key" value="' + (role ? ADM.esc(role.key) : '') + '" ' + (isEdit ? 'readonly' : 'placeholder="如 it_ops"') + '></div>' +
+      '<div class="col-4"><label class="form-label">显示名称</label>' +
+      '<input class="form-control" name="display_name" value="' + (role ? ADM.esc(role.display_name) : '') + '"></div>' +
+      '<div class="col-4"><label class="form-label">说明</label>' +
+      '<input class="form-control" name="description" value="' + (role ? ADM.esc(role.description || '') : '') + '"></div></div>' +
+      '<div class="mb-2"><label class="form-label">数据范围</label>' +
+      '<select class="form-select" name="scope_type" onchange="this.closest(\'form\').querySelector(\'#roleDomainBox\').style.display = this.value === \'custom\' ? \'\' : \'none\'">' +
+      '<option value="all" ' + (scopeAll ? 'selected' : '') + '>全部域</option>' +
+      '<option value="custom" ' + (!scopeAll ? 'selected' : '') + '>指定域</option></select></div>' +
+      '<div class="mb-2" id="roleDomainBox" style="' + (scopeAll ? 'display:none' : '') + '">' +
+      '<select class="form-select" name="scope_domains" multiple size="4">' + domainOpts + '</select></div>' +
+      '<label class="form-label">权限矩阵（勾选该模块可执行的操作）</label>' + permHtml,
+    okText: '保存',
+    onSubmit: async (form) => {
+      // 注意：ADM.post 只接受普通对象（内部统一转 FormData）；直接传 FormData 会因
+      // Object.keys(FormData) 为空而发送空表单，后端收到 key='' 报「角色标识至少 2 个字符」。
+      const data = {
+        key: form.querySelector('[name=key]').value.trim(),
+        display_name: form.querySelector('[name=display_name]').value.trim(),
+        description: form.querySelector('[name=description]').value.trim(),
+        scope_type: form.querySelector('[name=scope_type]').value,
+        scope_domains: Array.from(form.querySelector('[name=scope_domains]').selectedOptions).map(o => o.value),
+      };
+      form.querySelectorAll('[name^=perm_]').forEach(cb => {
+        if (cb.checked) data[cb.name] = '1';
+      });
+      const r = await ADM.post('/config/roles/save', data, { silent: true });
+      if (!r.ok) { ADM.err(r.message || '保存失败'); return false; }
+      setTimeout(() => location.reload(), 600);
+      return true;
+    }
+  });
+}
+
+document.getElementById('btnNewRole').addEventListener('click', () => roleEditor(null));
+document.querySelectorAll('#roleTable [data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  const tr = btn.closest('tr');
+  const act = btn.dataset.act;
+  if (act === 'edit-role') {
+    const role = ROLES_DATA.find(x => x.key === tr.dataset.key);
+    if (role) roleEditor(role);
+  } else if (act === 'del-role') {
+    const role = ROLES_DATA.find(x => x.key === tr.dataset.key);
+    const yes = await ADM.confirmDanger({
+      title: '删除角色', message: '删除后使用该角色的账号将回退为「普通运维」。',
+      items: ['角色：' + (role ? role.display_name : tr.dataset.key)], confirmText: '删除'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/config/roles/delete', { key: tr.dataset.key, confirm: '1' }, { silent: true });
+    if (r.ok) setTimeout(() => location.reload(), 600);
+  }
+}));
+</script>
+{% endblock %}

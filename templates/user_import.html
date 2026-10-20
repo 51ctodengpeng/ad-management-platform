@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}批量导入用户 · {{ app_name }}{% endblock %}
+{% block page_title %}批量导入 AD 用户{% endblock %}
+{% block page_sub %}上传 Excel → 全量预校验 → 确认后逐条写入 AD（单条失败不影响其他记录）{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-sm btn-light border" href="{{ url_for('users.import_template') }}">{{ ic.icon('download', 15) }} 下载模板</a>
+<a class="btn btn-sm btn-light border" href="{{ url_for('users.index') }}">{{ ic.icon('arrow-left', 15) }} 返回列表</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('upload') }} 第一步：选择文件与目标域</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">导入目标域 <span class="text-danger">*</span></label>
+          <div class="border rounded p-2" style="max-height:150px;overflow:auto">
+            {% for d in domains %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="domain_ids" value="{{ d.id }}" id="dm{{ d.id }}"
+                     {{ 'checked' if loop.first }}>
+              <label class="form-check-label" for="dm{{ d.id }}">
+                {{ d.name }} <span class="help-text">（{{ d.domain_name }}）</span>
+              </label>
+            </div>
+            {% else %}
+            <div class="help-text">没有已启用的域，请先到「多域管理」配置</div>
+            {% endfor %}
+          </div>
+          <div class="form-text">勾选多个域时，同一份数据会分别写入每个域（登录名在各域内唯一即可）</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Excel 文件（.xlsx）<span class="text-danger">*</span></label>
+          <input class="form-control" type="file" id="fileInput" accept=".xlsx">
+          <div class="form-text">上限 20MB；建议先下载模板，列顺序需与模板一致</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnValidate">{{ ic.icon('check', 15) }} 上传并校验</button>
+        <div class="help-text mt-2">校验阶段不会写入 AD，仅做格式、重复、密码强度检查。</div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('info') }} 模板列说明</div>
+      <div class="card-body" style="font-size:12.5px">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>列</th><th>字段</th><th>必填</th></tr></thead>
+          <tbody>
+            <tr><td>A</td><td>登录名 sAMAccountName</td><td><span class="badge-soft red">是</span></td></tr>
+            <tr><td>B</td><td>显示名称</td><td><span class="badge-soft red">是</span></td></tr>
+            <tr><td>C</td><td>初始密码</td><td><span class="badge-soft red">是</span></td></tr>
+            <tr><td>D</td><td>所属 OU DN</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>E</td><td>邮箱</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>F</td><td>手机</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>G</td><td>职位</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>H</td><td>部门</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>I</td><td>公司</td><td><span class="badge-soft gray">否</span></td></tr>
+            <tr><td>J</td><td>描述</td><td><span class="badge-soft gray">否</span></td></tr>
+          </tbody>
+        </table>
+        <div class="help-text mt-2">OU DN 留空则放入域根；密码需 ≥7 位且含 3 类字符。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card" id="resultCard" style="display:none">
+      <div class="card-header">{{ ic.icon('check') }} 第二步：校验结果
+        <span class="ms-auto help-text" id="summaryText"></span>
+      </div>
+      <div class="card-body">
+        <div id="alertBox"></div>
+        <div id="errorBox"></div>
+        <div id="previewBox"></div>
+      </div>
+      <div class="card-body d-flex gap-2" style="border-top:1px solid var(--adm-border)">
+        <button class="btn btn-danger btn-sm" id="btnRun" disabled>{{ ic.icon('upload', 15) }} 确认导入</button>
+        <a class="btn btn-light border btn-sm" href="{{ url_for('users.import_page') }}">重新上传</a>
+        <span class="help-text align-self-center ms-auto">导入过程逐条提交，已成功的不会回滚</span>
+      </div>
+    </div>
+    <div class="card" id="doneCard" style="display:none">
+      <div class="card-header">{{ ic.icon('check') }} 导入结果</div>
+      <div class="card-body" id="doneBox"></div>
+    </div>
+    <div class="card" id="placeholder">
+      <div class="empty-state">
+        {{ ic.icon('upload', 34) }}
+        <div>左侧选择文件后点击「上传并校验」</div>
+        <div class="help-text mt-1">校验结果会在此展示可导入条数与每条异常原因</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let TOKEN = '', VALID_COUNT = 0;
+
+async function downloadErrors() {
+  const resp = await fetch('/users/import/errors/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'token=' + encodeURIComponent(TOKEN),
+    credentials: 'same-origin'
+  });
+  if (!resp.ok) {
+    const j = await resp.json().catch(() => null);
+    ADM.err((j && j.message) || '导出失败');
+    return;
+  }
+  const blob = await resp.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '导入错误明细.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('btnValidate').addEventListener('click', async () => {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) { ADM.warn('请先选择 Excel 文件'); return; }
+  const ids = Array.from(document.querySelectorAll('[name=domain_ids]:checked')).map(x => x.value);
+  if (!ids.length) { ADM.warn('请至少选择一个目标域'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  ids.forEach(x => fd.append('domain_ids', x));
+  const btn = document.getElementById('btnValidate');
+  ADM.btnLoading(btn, true, '校验中…');
+  const r = await ADM.upload('/users/import/validate', fd, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '校验失败'); return; }
+
+  TOKEN = r.data.token; VALID_COUNT = r.data.valid;
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('resultCard').style.display = '';
+  document.getElementById('summaryText').textContent =
+    '总行数 ' + r.data.total + ' · 可导入 ' + r.data.valid + ' · 异常 ' + r.data.errors.length +
+    ' · 目标域 ' + (r.data.domains || []).join(', ');
+
+  let html = '';
+  if (!r.data.errors.length) {
+    html += '<div class="alert alert-success py-2 mb-2" style="font-size:13px">全部记录校验通过，可以导入。</div>';
+  } else {
+    html += '<div class="alert alert-warning py-2 mb-2" style="font-size:13px">存在 ' + r.data.errors.length +
+            ' 条异常记录，<b>异常记录会被跳过</b>，其余仍可导入。</div>';
+    html += '<div class="table-responsive" style="max-height:260px;overflow:auto"><table class="table table-sm">' +
+            '<thead><tr><th style="width:60px">行号</th><th>登录名</th><th>问题</th></tr></thead><tbody>';
+    r.data.errors.forEach(e => {
+      html += '<tr><td class="mono">' + e.row + '</td><td>' + ADM.esc(e.sam || '—') + '</td><td class="text-danger" style="font-size:12px">' +
+              e.errors.map(ADM.esc).join('；') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<button class="btn btn-sm btn-outline-danger mt-2" type="button" onclick="downloadErrors()">' +
+            '导出错误明细（Excel）</button>';
+  }
+  document.getElementById('errorBox').innerHTML = html;
+  // 可导入用户预览列表（密码不回显）
+  let phtml = '';
+  if (r.data.valid) {
+    phtml += '<div class="fw-semibold mb-1" style="font-size:13px">可导入用户预览' +
+      (r.data.preview_total > 200 ? '（共 ' + r.data.preview_total + ' 条，仅显示前 200 条）' : '') + '</div>';
+    phtml += '<div class="table-responsive" style="max-height:320px;overflow:auto"><table class="table table-sm mb-0">' +
+      '<thead><tr><th style="width:50px">行号</th><th>登录名</th><th>显示名称</th><th>部门</th>' +
+      '<th>职位</th><th>邮箱</th><th>OU</th></tr></thead><tbody>';
+    (r.data.preview || []).forEach(v => {
+      phtml += '<tr>' +
+        '<td class="mono">' + (v.row || '') + '</td>' +
+        '<td class="fw-semibold">' + ADM.esc(v.sam_account_name) + '</td>' +
+        '<td>' + ADM.esc(v.display_name) + '</td>' +
+        '<td>' + ADM.esc(v.department || '—') + '</td>' +
+        '<td>' + ADM.esc(v.title || '—') + '</td>' +
+        '<td class="help-text">' + ADM.esc(v.mail || '—') + '</td>' +
+        '<td>' + (v.ou ? ADM.esc(v.ou) : '域根') + '</td>' +
+        '</tr>';
+    });
+    phtml += '</tbody></table></div>';
+    phtml += '<div class="help-text mt-2">初始密码取自 C 列，出于安全此处不回显（日志亦不记录密码）。</div>';
+  }
+  document.getElementById('previewBox').innerHTML = phtml;
+  document.getElementById('btnRun').disabled = r.data.valid === 0;
+});
+
+document.getElementById('btnRun').addEventListener('click', async () => {
+  const yes = await ADM.confirmDanger({
+    title: '确认批量写入 AD',
+    message: '系统将逐条在 AD 域控中创建下列用户，该操作会真实修改域数据。',
+    items: ['可导入记录：' + VALID_COUNT + ' 条', '记录会分别写入所选域', '单条失败不影响其他记录，并逐条写入审计日志'],
+    requireCheck: true, checkText: '我已核对导入数据，确认写入 AD',
+    confirmText: '开始导入 ' + VALID_COUNT + ' 条'
+  });
+  if (!yes) return;
+  const btn = document.getElementById('btnRun');
+  ADM.btnLoading(btn, true, '导入中…');
+  const r = await ADM.post('/users/import/run', { token: TOKEN, confirm: '1' }, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (!r.ok) { ADM.err(r.message || '导入失败'); return; }
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('doneCard').style.display = '';
+  const d = r.data;
+  let html = '<div class="alert ' + (d.failed.length ? 'alert-warning' : 'alert-success') +
+             ' py-2" style="font-size:13px">成功 ' + d.success.length + ' 条' +
+             (d.failed.length ? '，失败 ' + d.failed.length + ' 条' : '') + '</div>';
+  if (d.failed.length) {
+    html += '<div class="table-responsive" style="max-height:300px;overflow:auto"><table class="table table-sm">' +
+            '<thead><tr><th>登录名</th><th>失败原因</th></tr></thead><tbody>';
+    d.failed.forEach(f => {
+      html += '<tr><td>' + ADM.esc(f.sam) + '</td><td class="text-danger" style="font-size:12px">' + ADM.esc(f.error) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '<a class="btn btn-sm btn-primary mt-2" href="/users/">查看用户列表</a>';
+  document.getElementById('doneBox').innerHTML = html;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}仪表盘 · {{ app_name }}{% endblock %}
+{% block page_title %}仪表盘{% endblock %}
+{% block page_sub %}多域总览 · 数据来自本地缓存，最后同步时间见各域卡片{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-sm btn-outline-primary" id="btnSyncAll">
+  {{ ic.icon('refresh', 15) }} 全部域同步</button>
+<button class="btn btn-sm btn-outline-secondary" id="btnRefreshStatus">
+  {{ ic.icon('server', 15) }} 检测域状态</button>
+{% endblock %}
+
+{% block content %}
+{% if ov.alerts %}
+<div class="mb-3 d-flex flex-column gap-2" id="dashAlerts">
+  {% for a in ov.alerts %}
+  <div class="alert alert-{{ a.level }} alert-adm mb-0 d-flex align-items-center gap-2" data-key="{{ a.key }}">
+    {{ ic.icon('warn', 15) }}<span class="flex-grow-1">{{ a.text }}</span>
+    <button type="button" class="alert-dismiss" title="清除（当天不再显示）" aria-label="清除">&#10005;</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="hero-banner mb-3">
+  <div>
+    <h2 class="hero-title">{{ ic.icon('dashboard', 18) }} AD 域控管理控制台</h2>
+    <p class="hero-sub">多域账号与目录对象一体化管理 · 写直连 AD、读本地缓存 · PowerShell 中文社区团队</p>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-sm btn-light" href="{{ url_for('domain.index') }}">{{ ic.icon('plus', 14) }} 新增域</a>
+    <a class="btn btn-sm btn-light" href="{{ url_for('users.index') }}">{{ ic.icon('users', 14) }} 用户管理</a>
+    <a class="btn btn-sm btn-light" href="{{ url_for('alerts.index') }}" {{ 'style=display:none' if not lic_features.alerts }}>{{ ic.icon('alert', 14) }} 告警中心</a>
+  </div>
+</div>
+
+<div class="stat-grid mb-3">
+  <a class="stat blue" href="{{ url_for('users.index') }}">
+    <div class="sicon">{{ ic.icon('users', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.total }}</div><div class="slabel">AD 用户总数</div></div>
+  </a>
+  <a class="stat green" href="{{ url_for('users.index', enabled='1') }}">
+    <div class="sicon">{{ ic.icon('check', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.enabled }}</div><div class="slabel">启用账号</div></div>
+  </a>
+  <a class="stat gray" href="{{ url_for('users.index', enabled='0') }}">
+    <div class="sicon">{{ ic.icon('power', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.disabled }}</div><div class="slabel">禁用账号</div></div>
+  </a>
+  <a class="stat amber" href="{{ url_for('users.index', tag='locked') }}">
+    <div class="sicon">{{ ic.icon('lock', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.locked }}</div><div class="slabel">已锁定账号</div></div>
+  </a>
+  <a class="stat red" href="{{ url_for('users.index', tag='pwd_expired') }}">
+    <div class="sicon">{{ ic.icon('key', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.pwd_expired }}</div><div class="slabel">密码已过期</div></div>
+  </a>
+  <a class="stat purple" href="{{ url_for('users.index', tag='idle_90') }}">
+    <div class="sicon">{{ ic.icon('clock', 20) }}</div>
+    <div><div class="sval">{{ ov.agg.idle_90 }}</div><div class="slabel">90 天未登录</div></div>
+  </a>
+  <a class="stat blue" href="{{ url_for('domain.index') }}">
+    <div class="sicon">{{ ic.icon('server', 20) }}</div>
+    <div><div class="sval">{{ ov.online }}<span style="font-size:13px;color:#98a2b3">/{{ ov.per_domain|length }}</span></div>
+      <div class="slabel">域在线数</div></div>
+  </a>
+  {% if lic_features.trust %}
+  <a class="stat purple" href="{{ url_for('trust.index') }}">
+    <div class="sicon">{{ ic.icon('link', 20) }}</div>
+    <div><div class="sval">{{ ov.trust_total }}</div><div class="slabel">信任关系（双向校验 {{ ov.trust_verified }}）</div></div>
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">{{ ic.icon('server') }} 分域统计
+        <span class="ms-auto help-text">读 SQLite 缓存，不实时查 AD</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>域</th><th class="text-end">用户</th><th class="text-end">启用</th>
+                <th class="text-end">禁用</th><th class="text-end">锁定</th>
+                <th class="text-end">密码过期</th><th class="text-end">OU/组/机</th>
+                <th>状态</th><th>最后同步</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for s in ov.per_domain %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('users.index', domain_id=s.id) }}" class="fw-semibold text-decoration-none">
+                    {{ s.name }}</a>
+                  <div class="domain-fqdn">{{ s.domain_name }}</div>
+                </td>
+                <td class="text-end fw-semibold">{{ s.total }}</td>
+                <td class="text-end">{{ s.enabled }}</td>
+                <td class="text-end">{{ s.disabled }}</td>
+                <td class="text-end {{ 'text-danger fw-semibold' if s.locked }}">{{ s.locked }}</td>
+                <td class="text-end {{ 'text-danger fw-semibold' if s.pwd_expired }}">{{ s.pwd_expired }}</td>
+                <td class="text-end text-muted">{{ s.ou_count }}/{{ s.group_count }}/{{ s.computer_count }}</td>
+                <td>
+                  {% if not s.enabled_flag %}<span class="badge-soft gray">已停用</span>
+                  {% elif s.status == 'online' %}<span class="badge-soft green"><span class="dot on"></span>在线</span>
+                  {% elif s.status == 'offline' %}<span class="badge-soft red" title="{{ s.status_msg }}"><span class="dot off"></span>离线·只读</span>
+                  {% else %}<span class="badge-soft gray"><span class="dot unk"></span>未检测</span>{% endif %}
+                </td>
+                <td class="text-muted" style="font-size:12px">{{ s.last_sync_at or '—' }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="9"><div class="empty-state">尚未配置任何 AD 域，请先到「多域管理」新增</div></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">{{ ic.icon('bolt') }} 今日操作</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted">操作总数</span><b style="font-size:18px">{{ ov.op_total }}</b>
+        </div>
+        <div class="d-flex justify-content-between mb-3">
+          <span class="text-muted">失败次数</span>
+          <b style="font-size:18px" class="{{ 'text-danger' if ov.op_failed else '' }}">{{ ov.op_failed }}</b>
+        </div>
+        {% if ov.op_by_domain %}
+        <div class="section-title">按域</div>
+        {% for r in ov.op_by_domain[:6] %}
+        <div class="d-flex justify-content-between" style="font-size:12.5px;padding:2px 0">
+          <span class="text-truncate" style="max-width:200px">{{ r.domain_name or '系统' }}</span>
+          <span class="text-muted">{{ r.c }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% if ov.op_by_module %}
+        <div class="section-title">按模块</div>
+        <div class="d-flex flex-wrap gap-1">
+          {% for r in ov.op_by_module %}
+          <span class="badge-soft gray">{{ {'auth':'登录','domain':'域','trust':'信任','user':'用户','ou':'OU',
+            'group':'组','computer':'计算机','sync':'同步','system':'系统'}.get(r.module, r.module) }} {{ r.c }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">{{ ic.icon('refresh') }} 同步任务</div>
+      <div class="card-body">
+        {% if ov.task.current %}
+        <div class="alert alert-info py-2 mb-2" style="font-size:12.5px">
+          正在执行：{{ ov.task.current.type }}（任务 #{{ ov.task.current.id }}）
+        </div>
+        {% else %}
+        <div class="help-text mb-2">当前无运行中的同步任务</div>
+        {% endif %}
+        <div class="help-text mb-2">排队中：{{ ov.task.pending }} 个</div>
+        {% for t in ov.task.recent[:5] %}
+        <div class="d-flex gap-2 align-items-start" style="font-size:12px;padding:3px 0;border-top:1px dashed #eef1f5">
+          <span class="badge-soft {{ 'green' if t.status=='success' else 'red' if t.status=='failed' else 'amber' }}">
+            {{ {'success':'成功','failed':'失败','running':'执行中','pending':'排队'}.get(t.status, t.status) }}</span>
+          <div class="flex-grow-1">
+            <div>{{ {'sync_domain':'单域同步','sync_all':'全部域同步','trust_refresh':'信任刷新'}.get(t.task_type, t.task_type) }}
+              <span class="text-muted">#{{ t.id }}</span></div>
+            <div class="text-muted text-truncate" style="max-width:260px" title="{{ t.message }}">{{ t.message or t.created_at }}</div>
+          </div>
+        </div>
+        {% endfor %}
+        <a href="{{ url_for('domain.index') }}" class="btn btn-sm btn-outline-secondary w-100 mt-2">查看同步详情</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">{{ ic.icon('users') }} 近 7 天新建账号</div>
+      <div class="card-body">
+        {% set mx = (trend|map(attribute='count')|max) or 1 %}
+        <div class="d-flex align-items-flex-end gap-2" style="height:88px;align-items:flex-end">
+          {% for t in trend %}
+          <div class="flex-grow-1 text-center">
+            <div style="background:#dbeafe;border-radius:3px 3px 0 0;height:{{ (t.count / mx * 64)|round|int }}px;
+                        min-height:3px;position:relative" title="{{ t.day }}：{{ t.count }} 个">
+              {% if t.count %}<span style="position:absolute;top:-15px;left:0;right:0;font-size:10px;color:#64748b">{{ t.count }}</span>{% endif %}
+            </div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:3px">{{ t.day }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnSyncAll').addEventListener('click', async function () {
+  const yes = await ADM.confirmDanger({
+    title: '全部域增量同步',
+    message: '将对所有已启用域逐个执行增量同步（读 AD，不改数据），单域失败不影响其他域。',
+    requireCheck: true, confirmText: '开始同步'
+  });
+  if (!yes) return;
+  ADM.btnLoading(this, true);
+  const r = await ADM.post('/domains/sync-all', { kind: 'incr' });
+  ADM.btnLoading(this, false);
+  if (r.ok) setTimeout(() => location.reload(), 1500);
+});
+document.getElementById('btnRefreshStatus').addEventListener('click', async function () {
+  ADM.btnLoading(this, true, '检测中…');
+  const r = await ADM.post('/domains/refresh-status', {});
+  ADM.btnLoading(this, false);
+  if (r.ok) setTimeout(() => location.reload(), 800);
+});
+
+// 告警条清除：点 × 隐藏，当天不再显示（localStorage 记忆，次日自动恢复）
+(function () {
+  const box = document.getElementById('dashAlerts');
+  if (!box) return;
+  const d = new Date();
+  const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  let store = {};
+  try { store = JSON.parse(localStorage.getItem('dash_alert_dismissed') || '{}') || {}; } catch (e) { store = {}; }
+  // 只保留今天的记录，自动清理历史
+  store = Object.fromEntries(Object.entries(store).filter(([, v]) => v === today));
+  box.querySelectorAll('.alert[data-key]').forEach(el => {
+    if (store[el.dataset.key] === today) el.classList.add('dismissed');
+  });
+  box.querySelectorAll('.alert-dismiss').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const el = btn.closest('.alert');
+      el.classList.add('dismissed');
+      store[el.dataset.key] = today;
+      localStorage.setItem('dash_alert_dismissed', JSON.stringify(store));
+    });
+  });
+})();
+</script>
+{% endblock %}

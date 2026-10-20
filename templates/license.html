@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}授权信息 · {{ app_name }}{% endblock %}
+{% block page_title %}授权信息{% endblock %}
+{% block page_sub %}默认 30 天试用；导入许可文件后永久激活{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('key') }} 当前授权状态</div>
+      <div class="card-body">
+        {% set st = state['status'] %}
+        <div class="d-flex align-items-center gap-3 mb-3">
+          {% if st == 'activated' %}
+          <span class="badge-soft green" style="font-size:14px">已激活</span>
+          {% elif st == 'expired' %}
+          <span class="badge-soft red" style="font-size:14px">已过期</span>
+          {% else %}
+          <span class="badge-soft amber" style="font-size:14px">试用中</span>
+          {% endif %}
+          <div class="fw-semibold" style="font-size:16px">
+            {% if st == 'activated' %}
+              {{ state['customer'] or '授权客户' }} · {{ state['edition'] or '标准版' }}
+            {% elif st == 'expired' %}
+              试用期已结束，请导入许可文件激活
+            {% else %}
+              剩余试用期 <span class="text-danger">{{ state['trial_remaining_days'] }}</span> 天
+            {% endif %}
+          </div>
+        </div>
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th style="width:160px">授权状态</th><td>{{ {'trial':'试用','activated':'已激活','expired':'已过期','revoked':'已撤销'}.get(st, st) }}</td></tr>
+            {% if state.get('first_run_at') %}<tr><th>首次运行</th><td>{{ state['first_run_at'] }}</td></tr>{% endif %}
+            {% if state.get('trial_expires_at') and st != 'activated' %}<tr><th>试用截止</th><td>{{ state['trial_expires_at'] }}</td></tr>{% endif %}
+            {% if st == 'activated' %}
+            <tr><th>激活时间</th><td>{{ state.get('activated_at', '') }}</td></tr>
+            <tr><th>许可编号</th><td class="mono">{{ state.get('license_id', '') }}</td></tr>
+            {% if state.get('expires_date') %}
+            <tr><th>剩余激活天数</th><td><span class="text-danger fw-semibold">{{ state.get('license_remaining_days', 0) }}</span> 天</td></tr>
+            <tr><th>到期日期</th><td>{{ state.get('expires_date') }}</td></tr>
+            {% else %}
+            <tr><th>有效期</th><td>永久</td></tr>
+            {% endif %}
+            {% endif %}
+            <tr><th>机器指纹</th>
+              <td class="mono" style="font-size:12px">{{ state.get('machine_id', '') }}
+                <button type="button" class="btn btn-sm btn-light border ms-2" onclick="ADM.copy('{{ state.get('machine_id','') }}')">{{ ic.icon('copy', 14) }} 复制</button>
+                <div class="form-text">发给供应商，可把许可绑定到本机（防止许可被拷贝到其他机器）</div>
+              </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('shield') }} 许可功能</div>
+      <div class="card-body">
+        <div class="lic-feature-grid">
+          {% for f in feats %}
+          <div class="lic-feature {{ 'on' if f.enabled else 'off' }}">
+            <span class="chk">{{ ic.icon('check', 12) }}</span>
+            <span class="lbl">{{ f.label }}</span>
+            {% if f.value %}
+            <span class="val">{{ f.value }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div class="help-text mt-2">绿色打勾 = 当前授权已启用；灰色勾 = 当前版本未包含。试用期内全部功能开放。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('upload') }} 导入许可（上传文件或粘贴内容）</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">许可文件（.lic）</label>
+          <input class="form-control" type="file" id="licFile" accept=".lic,.json,.txt">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">或直接粘贴许可内容</label>
+          <textarea class="form-control mono" id="licText" rows="5" style="font-size:12px"
+                    placeholder='粘贴许可文件内容，形如 {"payload": {...}, "signature": "..."}'></textarea>
+          <div class="form-text mt-2">两种方式任选其一；优先使用上传的文件。</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnImport">{{ ic.icon('check', 15) }} 导入并激活</button>
+        <div class="help-text mt-2" id="importMsg"></div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">{{ ic.icon('info') }} 授权说明</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.8">
+        <div>· 首次运行自动进入 <b>30 天试用期</b>，期间全部功能可用。</div>
+        <div>· 试用期结束后，写操作将被限制为只读，需导入许可文件激活。</div>
+        <div>· 公钥已内置，验签自动完成，导入由激活服务签发的许可即可激活。</div>
+        <div>· 许可以数字签名防篡改，任何修改都会导致导入失败。</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnImport').addEventListener('click', async () => {
+  const file = document.getElementById('licFile').files[0];
+  const text = document.getElementById('licText').value.trim();
+  if (!file && !text) { ADM.warn('请上传许可文件或粘贴许可内容'); return; }
+  const btn = document.getElementById('btnImport');
+  ADM.btnLoading(btn, true, '校验中…');
+  let r;
+  if (file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    r = await ADM.upload('/license/import', fd, { silent: true });
+  } else {
+    r = await ADM.post('/license/import', { text: text }, { silent: true });
+  }
+  ADM.btnLoading(btn, false);
+  if (r.ok) { ADM.ok(r.message || '激活成功'); setTimeout(() => location.reload(), 900); }
+  else { ADM.err(r.message || '激活失败'); }
+});
+</script>
+{% endblock %}

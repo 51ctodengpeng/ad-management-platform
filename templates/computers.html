@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}域计算机 · {{ app_name }}{% endblock %}
+{% block page_title %}域计算机管理{% endblock %}
+{% block page_sub %}
+{% if f.domain_id %}{{ d.name }}（{{ d.domain_name }}）· 共 {{ total }} 台
+  {% if d.status == 'offline' %}<span class="badge-soft red">离线 · 只读</span>{% endif %}
+{% else %}全部域 · 共 {{ total }} 台（读缓存）{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+{% if f.domain_id %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('computers.export', domain_id=f.domain_id) }}">
+  {{ ic.icon('download', 15) }} 导出清单</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <form class="filter-bar" method="get">
+    <select class="form-select form-select-sm" name="domain_id" style="width:220px" onchange="this.form.submit()">
+      <option value="">全部域</option>
+      {% for x in domains %}
+      <option value="{{ x.id }}" {{ 'selected' if f.domain_id == x.id }}>{{ x.name }}（{{ x.domain_name }}）</option>
+      {% endfor %}
+    </select>
+    <div class="input-group input-group-sm" style="width:250px">
+      <span class="input-group-text bg-white">{{ ic.icon('search', 14) }}</span>
+      <input class="form-control" name="keyword" value="{{ f.keyword }}" placeholder="计算机名 / DNS 名 / 操作系统 / 备注">
+    </div>
+    <select class="form-select form-select-sm" name="enabled" style="width:120px">
+      <option value="all" {{ 'selected' if f.enabled == 'all' }}>全部状态</option>
+      <option value="1" {{ 'selected' if f.enabled == '1' }}>已启用</option>
+      <option value="0" {{ 'selected' if f.enabled == '0' }}>已禁用</option>
+    </select>
+    <div class="form-check form-switch ms-1">
+      <input class="form-check-input" type="checkbox" id="offlineChk" name="offline" value="1"
+             {{ 'checked' if f.offline }} onchange="this.form.submit()">
+      <label class="form-check-label" for="offlineChk">
+        <span class="badge-soft amber">仅看长期离线（≥30 天）</span></label>
+    </div>
+    <button class="btn btn-sm btn-primary">{{ ic.icon('search', 14) }} 查询</button>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('computers.index', domain_id=f.domain_id or '') }}">重置</a>
+    <span class="ms-auto d-flex align-items-center gap-1">
+      <button type="button" class="btn btn-sm btn-outline-danger" id="btnBatchDelete" disabled>批量删除</button>
+      <span class="help-text" id="selCount"></span>
+    </span>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover" id="computerTable">
+      <thead>
+        <tr>
+          <th style="width:34px"><input type="checkbox" class="form-check-input"></th>
+          <th>计算机名</th><th>DNS 主机名</th><th>操作系统</th><th>所属 OU</th>
+          <th>状态</th><th>最后登录</th><th>备注</th>
+          {% if not f.domain_id %}<th>所属域</th>{% endif %}
+          <th style="width:120px">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in computers %}
+        {% set offline = (not c['last_logon']) or c['last_logon'] < offline_line %}
+        <tr data-id="{{ c['id'] }}" data-name="{{ c['name'] }}" data-desc="{{ c['description'] or '' }}"
+            data-remark="{{ c['remark'] or '' }}" data-enabled="{{ c['enabled'] }}" data-domain="{{ c['domain_id'] }}">
+          <td><input type="checkbox" class="form-check-input" value="{{ c['id'] }}"></td>
+          <td>
+            <div class="fw-semibold">{{ c['name'] }}$</div>
+            {% if offline %}<span class="badge-soft amber" title="超过 30 天未登录域">长期离线</span>{% endif %}
+          </td>
+          <td class="help-text">{{ c['dns_host_name'] or '—' }}</td>
+          <td style="font-size:12px">{{ c['operating_system'] or '—' }}
+            {% if c['os_version'] %}<div class="help-text">{{ c['os_version'] }}</div>{% endif %}</td>
+          <td class="text-muted" style="font-size:12px" title="{{ c['ou_dn'] }}">
+            {{ c['ou_dn'].split(',')[0][3:] if c['ou_dn'] else '—' }}</td>
+          <td>{% if c['enabled'] %}<span class="badge-soft green">启用</span>
+              {% else %}<span class="badge-soft gray">禁用</span>{% endif %}</td>
+          <td class="text-muted" style="font-size:12px">{{ c['last_logon'] or '从未' }}</td>
+          <td style="font-size:12px;max-width:180px">
+            {{ c['remark'] or '' }}
+            {% if c['remark'] %}<div class="help-text">仅本系统可见</div>{% endif %}
+          </td>
+          {% if not f.domain_id %}<td class="help-text">{{ dm[c['domain_id']].domain_name if c['domain_id'] in dm else '' }}</td>{% endif %}
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-light border" data-act="edit">编辑</button>
+              <button type="button" class="btn btn-light border dropdown-toggle dropdown-toggle-split"
+                      data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">更多操作</span></button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="javascript:void(0)" data-act="toggle">
+                  {{ '禁用账号' if c['enabled'] else '启用账号' }}</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="javascript:void(0)" data-act="delete">删除计算机</a></li>
+              </ul>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 10 if not f.domain_id else 9 }}"><div class="empty-state">
+          {{ ic.icon('monitor', 32) }}
+          <div>没有符合条件的计算机</div>
+          <div class="help-text mt-1">{% if not f.domain_id %}请选择域；{% endif %}域计算机需要至少同步一次才会出现在缓存中</div>
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set qs = 'domain_id=' ~ (f.domain_id or '') ~ '&keyword=' ~ f.keyword ~ '&enabled=' ~ f.enabled ~ '&offline=' ~ (f.offline or '') %}
+  <div class="d-flex align-items-center gap-2 px-3 py-2 flex-wrap" style="border-top:1px solid var(--adm-border)">
+    <span class="help-text">共 {{ page.total }} 条 · 第 {{ page.page }}/{{ page.pages }} 页</span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm" style="width:auto" id="pageSizeSel"
+              onchange="location.href='?{{ qs }}&page_size=' + this.value + '&page=1'">
+        {% for ps in [20, 50, 100, 200, 500, 1000] %}
+        <option value="{{ ps }}" {{ 'selected' if page.size == ps }}>{{ ps }} 条/页</option>
+        {% endfor %}
+      </select>
+      {% if page.pages > 1 %}
+      <nav><ul class="pagination pagination-sm mb-0">
+        <li class="page-item {{ 'disabled' if not page.has_prev }}"><a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ page.page-1 }}">上一页</a></li>
+        {% for p in range(1, page.pages + 1) %}
+          {% if p <= 2 or p > page.pages - 2 or (p - page.page)|abs <= 1 %}
+          <li class="page-item {{ 'active' if p == page.page }}"><a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ p }}">{{ p }}</a></li>
+          {% elif p == 3 or p == page.pages - 2 %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not page.has_next }}"><a class="page-link" href="?{{ qs }}&page_size={{ page.size }}&page={{ page.page+1 }}">下一页</a></li>
+      </ul></nav>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body help-text" style="line-height:1.9">
+    <b>备注</b>字段只保存在本系统 SQLite 缓存，不会写回 AD，适合记录责任人 / 用途；<b>AD 描述</b>字段会真实写回域控。
+    长期离线（30 天以上未登录）通常意味着设备报废、重装或未加入域，建议核对后在 AD 中清理，避免占用计算机账号配额。
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const RO_MAP = {};
+{% for d in domains %}RO_MAP[{{ d.id }}] = {{ 'true' if (not d.enabled or d.status == 'offline') else 'false' }};
+{% endfor %}
+
+// 行内操作（按钮与右键菜单共用）
+async function computerRowAction(act, tr) {
+  const cid = tr.dataset.id, name = tr.dataset.name, enabled = tr.dataset.enabled === '1';
+  const ro = RO_MAP[tr.dataset.domain];
+  if (ro) { ADM.warn('该域当前离线，写操作已禁用'); return; }
+  if (act === 'edit') {
+    ADM.formModal({
+      title: '编辑计算机 · ' + name,
+      body: '<div class="mb-3"><label class="form-label">AD 描述（会写回域控）</label>' +
+            '<input class="form-control" name="description" value="' + ADM.esc(tr.dataset.desc) + '"></div>' +
+            '<div class="mb-2"><label class="form-label">本系统备注（仅本地）</label>' +
+            '<input class="form-control" name="remark" value="' + ADM.esc(tr.dataset.remark) + '" placeholder="如：财务部-张三-2023年采购">' +
+            '<div class="form-text">备注保存在 SQLite 缓存，不影响 AD 数据</div></div>',
+      onSubmit: async (form) => {
+        const r = await ADM.post('/computers/' + cid + '/update', ADM.formData(form));
+        if (r.ok) setTimeout(() => location.reload(), 700);
+        return false;
+      }
+    });
+  } else if (act === 'toggle') {
+    if (enabled) {
+      const yes = await ADM.confirmDanger({
+        title: '禁用计算机账号',
+        message: '禁用后该设备将无法登录域，所有域用户在这台机器上的登录都会失败。',
+        items: ['计算机：' + name + '$', '仅影响该设备，不影响用户账号'], confirmText: '禁用'
+      });
+      if (!yes) return;
+    }
+    const r = await ADM.post('/computers/' + cid + '/toggle', { enabled: enabled ? '0' : '1', confirm: '1' });
+    if (r.ok) setTimeout(() => location.reload(), 700);
+  } else if (act === 'delete') {
+    const yes = await ADM.confirmDanger({
+      title: '删除计算机账户',
+      message: '将从 AD 中永久删除该计算机对象，删除后该设备需重新加域才能登录。',
+      items: ['计算机：' + name + '$', '该操作不可自动恢复，请确认设备已下线或报废'],
+      requireInput: name,
+      inputHint: '请输入计算机名 ' + name + ' 以确认删除',
+      confirmText: '删除'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/computers/' + cid + '/delete', { confirm: '1' });
+    if (r.ok) setTimeout(() => location.reload(), 700);
+  }
+}
+
+document.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  computerRowAction(btn.dataset.act, btn.closest('tr'));
+}));
+
+// 右键菜单
+document.querySelectorAll('tbody').forEach(tb => tb.addEventListener('contextmenu', (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr || !tr.dataset.id) return;
+  e.preventDefault();
+  const enabled = tr.dataset.enabled === '1';
+  ADM.contextMenu([
+    { label: '编辑（描述 / 备注）', onClick: () => computerRowAction('edit', tr) },
+    { label: enabled ? '禁用账号' : '启用账号', onClick: () => computerRowAction('toggle', tr) },
+    '-',
+    { label: '删除计算机', danger: true, onClick: () => computerRowAction('delete', tr) },
+  ], e.clientX, e.clientY);
+}));
+
+// 全选 / 批量删除
+ADM.initSelectAll('#computerTable', (ids) => {
+  document.getElementById('btnBatchDelete').disabled = ids.length === 0;
+  const sc = document.getElementById('selCount');
+  if (sc) sc.textContent = ids.length ? ('已选 ' + ids.length) : '';
+});
+
+document.getElementById('btnBatchDelete').addEventListener('click', async () => {
+  const ids = ADM.selectedIds('#computerTable');
+  if (!ids.length) return;
+  const yes = await ADM.confirmDanger({
+    title: '批量删除计算机账户',
+    message: '将从 AD 永久删除所选计算机对象，删除后设备需重新加域。',
+    items: ['已选 ' + ids.length + ' 台计算机', '仅支持同一域内批量删除，已删除对象进入回收站'],
+    requireCheck: true, confirmText: '删除'
+  });
+  if (!yes) return;
+  const btn = document.getElementById('btnBatchDelete');
+  ADM.btnLoading(btn, true, '删除中…');
+  const r = await ADM.post('/computers/batch-delete', { ids: ids, confirm: '1' }, { silent: true });
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 900);
+});
+</script>
+{% endblock %}

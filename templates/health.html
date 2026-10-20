@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}健康监控 · {{ app_name }}{% endblock %}
+{% block page_title %}AD 域控健康监控{% endblock %}
+{% block page_sub %}实时采集已纳管域控的连接 · 复制 · 资源状态，一键巡检定位异常{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-sm btn-primary" id="btnInspect">{{ ic.icon('bolt', 15) }} 一键巡检</button>
+<a class="btn btn-sm btn-outline-secondary" id="btnExport" href="{{ url_for('health.export') }}">{{ ic.icon('download', 15) }} 导出结果</a>
+{% endblock %}
+
+{% block content %}
+<div class="stat-grid mb-3" id="statGrid"></div>
+<div class="row g-3" id="domainCards"></div>
+<div class="card" id="emptyCard" style="display:none">
+  <div class="empty-state">{{ ic.icon('server', 34) }}<div>尚未纳管任何 AD 域</div>
+    <div class="help-text mt-1">请先到「多域管理」配置域控连接</div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ST = { healthy: ['健康', 'green'], warning: ['告警', 'amber'], critical: ['严重', 'red'], offline: ['离线', 'gray'] };
+const statBox = document.getElementById('statGrid');
+const cardsBox = document.getElementById('domainCards');
+const emptyBox = document.getElementById('emptyCard');
+const btnInspect = document.getElementById('btnInspect');
+
+function badge(s) { const [t, c] = ST[s] || [s, 'gray']; return '<span class="badge-soft ' + c + '">' + t + '</span>'; }
+
+function render(res) {
+  const st = res.stat || {};
+  statBox.innerHTML =
+    '<div class="stat blue"><div class="sicon">域</div><div><div class="sval">' + (st.total || 0) + '</div><div class="slabel">已纳管域控</div></div></div>' +
+    '<div class="stat green"><div class="sicon">✓</div><div><div class="sval">' + (st.healthy || 0) + '</div><div class="slabel">健康</div></div></div>' +
+    '<div class="stat amber"><div class="sicon">⚠</div><div><div class="sval">' + (st.warning || 0) + '</div><div class="slabel">告警</div></div></div>' +
+    '<div class="stat red"><div class="sicon">✕</div><div><div class="sval">' + ((st.critical || 0) + (st.offline || 0)) + '</div><div class="slabel">严重 / 离线</div></div></div>';
+
+  const list = res.domains || [];
+  emptyBox.style.display = list.length ? 'none' : '';
+  cardsBox.innerHTML = list.map(d => {
+    const c = d.connection || {};
+    const r = d.resource;    // 未巡检时为 null
+    const rep = d.replication;  // 未巡检时为 null
+    let resHtml = '<div class="help-text">未巡检（点击「一键巡检」采集资源与复制状态）</div>';
+    if (r && r.collected) {
+      const cpuBad = r.cpu >= 85 ? 'text-danger' : (r.cpu >= 60 ? 'text-warning' : '');
+      const memBad = r.mem >= 85 ? 'text-danger' : (r.mem >= 60 ? 'text-warning' : '');
+      resHtml =
+        '<div class="d-flex flex-wrap gap-3">' +
+        '<div><div class="help-text">CPU</div><b class="' + cpuBad + '">' + (r.cpu ?? '—') + '%</b></div>' +
+        '<div><div class="help-text">内存</div><b class="' + memBad + '">' + (r.mem ?? '—') + '%</b></div>' +
+        '<div><div class="help-text">系统盘剩余</div><b>' + (r.disk_free_gb ?? '—') + ' GB</b></div>' +
+        '<div><div class="help-text">运行时长</div><b>' + (r.up_days ?? '—') + ' 天</b></div>' +
+        (r.host ? '<div><div class="help-text">主机</div><b class="mono">' + ADM.esc(r.host) + '</b></div>' : '') +
+        '</div>';
+    } else if (r && !r.collected) {
+      resHtml = '<div class="help-text text-warning">资源采集失败：' + ADM.esc(r.error || '') + '</div>';
+    }
+    const repHtml = !rep
+      ? '<span class="help-text">未巡检</span>'
+      : (!rep.collected ? '<span class="badge-soft gray">无法采集</span>'
+        : (rep.has_failure ? '<span class="badge-soft red">有失败</span>' : '<span class="badge-soft green">正常</span>'));
+
+    const issueHtml = (d.issues && d.issues.length)
+      ? d.issues.map(i => '<div class="issue-item">⚠ ' + ADM.esc(i) + '</div>').join('')
+      : '<div class="help-text">暂无异常</div>';
+
+    return '<div class="col-xl-4 col-md-6"><div class="card h-100">' +
+      '<div class="card-header d-flex align-items-center gap-2">' +
+      '<span class="fw-semibold text-truncate">' + ADM.esc(d.name) + '</span>' + badge(d.status) +
+      '<span class="ms-auto help-text mono" style="font-size:11px">' + ADM.esc(d.dc_host) + '</span></div>' +
+      '<div class="card-body">' +
+      '<div class="kv mb-2">' +
+      '<dt>LDAP</dt><dd>' + (c.ldap_ok ? '<span class="badge-soft green">正常</span>' : '<span class="badge-soft red">失败</span>') + '</dd>' +
+      '<dt>TCP</dt><dd>' + (c.tcp_ok ? '<span class="badge-soft green">正常</span>' : '<span class="badge-soft red">失败</span>') + '</dd>' +
+      '<dt>复制状态</dt><dd>' + repHtml + '</dd>' +
+      '</div>' +
+      '<div class="section-title">资源状态</div>' + resHtml +
+      '<div class="section-title mt-2">异常项</div>' + issueHtml +
+      '</div>' +
+      '<div class="card-body help-text" style="border-top:1px solid var(--adm-border)">巡检时间：' + (d.checked_at || '—') + '</div>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function load(deep) {
+  btnInspect && ADM.btnLoading(btnInspect, true, deep ? '巡检中…' : '加载中…');
+  try {
+    const r = await ADM.get('/health/api/summary?deep=' + (deep ? '1' : '0'), { silent: true });
+    if (r.ok) render(r.data);
+  } finally {
+    btnInspect && ADM.btnLoading(btnInspect, false);
+  }
+}
+
+btnInspect && btnInspect.addEventListener('click', () => load(true));
+document.getElementById('btnExport').addEventListener('click', async (e) => {
+  e.preventDefault();
+  ADM.ok('正在生成巡检报告并下载…');
+  window.location.href = '/health/export';
+});
+load(false);
+</script>
+{% endblock %}

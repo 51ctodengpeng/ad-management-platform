@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}用户组 · {{ app_name }}{% endblock %}
+{% block page_title %}AD 用户组管理{% endblock %}
+{% block page_sub %}
+{% if f.domain_id %}{{ d.name }}（{{ d.domain_name }}）· 共 {{ total }} 个组
+  {% if d.status == 'offline' %}<span class="badge-soft red">离线 · 只读</span>{% endif %}
+{% else %}全部域 · 共 {{ total }} 个组（读缓存）{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+{% if f.domain_id %}
+<button class="btn btn-sm btn-primary" id="btnNewGroup" {{ 'disabled' if d.status == 'offline' or not d.enabled }}>
+  {{ ic.icon('plus', 15) }} 新建用户组</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <form class="filter-bar" method="get">
+    <select class="form-select form-select-sm" name="domain_id" style="width:220px" onchange="this.form.submit()">
+      <option value="">全部域</option>
+      {% for x in domains %}
+      <option value="{{ x.id }}" {{ 'selected' if f.domain_id == x.id }}>{{ x.name }}（{{ x.domain_name }}）</option>
+      {% endfor %}
+    </select>
+    <div class="input-group input-group-sm" style="width:240px">
+      <span class="input-group-text bg-white">{{ ic.icon('search', 14) }}</span>
+      <input class="form-control" name="keyword" value="{{ f.keyword }}" placeholder="组名 / 登录名 / 描述">
+    </div>
+    <select class="form-select form-select-sm" name="scope" style="width:140px">
+      <option value="">全部作用域</option>
+      <option value="DomainLocal" {{ 'selected' if f.scope == 'DomainLocal' }}>本地域</option>
+      <option value="Global" {{ 'selected' if f.scope == 'Global' }}>全局</option>
+      <option value="Universal" {{ 'selected' if f.scope == 'Universal' }}>通用</option>
+    </select>
+    <select class="form-select form-select-sm" name="category" style="width:130px">
+      <option value="">全部类型</option>
+      <option value="Security" {{ 'selected' if f.category == 'Security' }}>安全组</option>
+      <option value="Distribution" {{ 'selected' if f.category == 'Distribution' }}>通讯组</option>
+    </select>
+    <button class="btn btn-sm btn-primary">{{ ic.icon('search', 14) }} 查询</button>
+    <a class="btn btn-sm btn-light border" href="{{ url_for('groups.index', domain_id=f.domain_id or '') }}">重置</a>
+    <span class="ms-auto help-text">组成员数与详情按需实时查询域控</span>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover" id="groupTable">
+      <thead>
+        <tr>
+          <th>组名</th>
+          <th>登录名</th>
+          <th>作用域</th>
+          <th>类型</th>
+          <th>成员数</th>
+          <th>所属 OU</th>
+          {% if not f.domain_id %}<th>所属域</th>{% endif %}
+          <th>描述</th>
+          <th style="width:160px">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for g in groups %}
+        <tr data-id="{{ g['id'] }}" data-dn="{{ g['dn'] }}" data-name="{{ g['name'] }}"
+            data-sam="{{ g['sam_account_name'] }}" data-desc="{{ g['description'] or '' }}"
+            data-mail="{{ g['mail'] or '' }}">
+          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('groups.detail', gid=g['id']) }}">{{ g['name'] }}</a></td>
+          <td class="mono">{{ g['sam_account_name'] }}</td>
+          <td><span class="badge-soft blue">{{ g['scope'] }}</span></td>
+          <td><span class="badge-soft {{ 'green' if g['category'] == 'Security' else 'gray' }}">{{ g['category'] }}</span></td>
+          <td class="mono">{{ g['member_count'] }}</td>
+          <td class="text-muted" style="font-size:12px" title="{{ g['ou_dn'] }}">
+            {{ g['ou_dn'].split(',')[0][3:] if g['ou_dn'] else '—' }}</td>
+          {% if not f.domain_id %}<td class="help-text">{{ dm[g['domain_id']].domain_name if g['domain_id'] in dm else '' }}</td>{% endif %}
+          <td class="text-muted text-tight" style="font-size:12px">{{ g['description'] or '—' }}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <a class="btn btn-light border" href="{{ url_for('groups.detail', gid=g['id']) }}">成员</a>
+              <button class="btn btn-light border" data-act="edit">编辑</button>
+              <button class="btn btn-light border text-danger" data-act="delete"
+                      {{ 'disabled' if g['sam_account_name'] in protected }}>删除</button>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 9 if not f.domain_id else 8 }}"><div class="empty-state">
+          {{ ic.icon('group', 32) }}
+          <div>没有符合条件的用户组</div>
+          <div class="help-text mt-1">{% if not f.domain_id %}请选择域；{% endif %}若刚完成同步，请刷新页面</div>
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.pages > 1 %}
+  <div class="d-flex align-items-center gap-2 px-3 py-2" style="border-top:1px solid var(--adm-border)">
+    <span class="help-text">共 {{ page.total }} 条 · 第 {{ page.page }}/{{ page.pages }} 页</span>
+    <nav class="ms-auto"><ul class="pagination pagination-sm mb-0">
+      {% set qs = 'domain_id=' ~ (f.domain_id or '') ~ '&keyword=' ~ f.keyword ~ '&scope=' ~ f.scope ~ '&category=' ~ f.category %}
+      <li class="page-item {{ 'disabled' if not page.has_prev }}"><a class="page-link" href="?{{ qs }}&page={{ page.page-1 }}">上一页</a></li>
+      {% for p in range(1, page.pages + 1) %}
+        {% if p <= 2 or p > page.pages - 2 or (p - page.page)|abs <= 1 %}
+        <li class="page-item {{ 'active' if p == page.page }}"><a class="page-link" href="?{{ qs }}&page={{ p }}">{{ p }}</a></li>
+        {% elif p == 3 or p == page.pages - 2 %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if not page.has_next }}"><a class="page-link" href="?{{ qs }}&page={{ page.page+1 }}">下一页</a></li>
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DOMAIN_ID = {{ f.domain_id or 0 }};
+const RO = {{ 'true' if (not f.domain_id or d.status == 'offline' or not d.enabled) else 'false' }};
+
+async function ouOptions() {
+  const r = await ADM.get('/ous/api/options?domain_id=' + DOMAIN_ID, { silent: true });
+  if (!r.ok) return '';
+  return r.data.map(o => '<option value="' + ADM.esc(o.dn) + '">' +
+    '&nbsp;'.repeat(Math.max(0, o.depth) * 2) + ADM.esc(o.name) + '</option>').join('');
+}
+
+function groupForm(o) {
+  const g = o || {};
+  const isEdit = !!o;
+  return '<div class="row g-3">' +
+    '<div class="col-md-6"><label class="form-label">组名 <span class="text-danger">*</span></label>' +
+    '<input class="form-control" name="name" value="' + ADM.esc(g.name || '') + '" ' + (isEdit ? 'disabled' : '') + '></div>' +
+    '<div class="col-md-6"><label class="form-label">登录名 sAMAccountName</label>' +
+    '<input class="form-control" name="sam_account_name" value="' + ADM.esc(g.sam_account_name || '') + '" ' +
+    (isEdit ? 'disabled' : 'placeholder="留空等于组名，≤20 位"') + '></div>' +
+    (isEdit ? '' :
+    '<div class="col-md-6"><label class="form-label">作用域</label><select class="form-select" name="scope">' +
+    '<option value="Global">全局（Global）</option><option value="DomainLocal">本地域（DomainLocal）</option>' +
+    '<option value="Universal">通用（Universal）</option></select>' +
+    '<div class="form-text">安全组 + 全局适用于大多数授权场景</div></div>' +
+    '<div class="col-md-6"><label class="form-label">类型</label><select class="form-select" name="category">' +
+    '<option value="Security">安全组（可授权）</option><option value="Distribution">通讯组（仅邮件分发）</option></select></div>' +
+    '<div class="col-12"><label class="form-label">所属 OU</label><select class="form-select" name="ou_dn" id="gOuSel">' +
+    '<option value="">CN=Users（默认容器）</option></select></div>') +
+    '<div class="col-md-6"><label class="form-label">邮件地址</label>' +
+    '<input class="form-control" name="mail" value="' + ADM.esc(g.mail || '') + '"></div>' +
+    '<div class="col-md-6"><label class="form-label">描述</label>' +
+    '<input class="form-control" name="description" value="' + ADM.esc(g.description || '') + '"></div>' +
+    '</div>';
+}
+
+document.getElementById('btnNewGroup') && document.getElementById('btnNewGroup').addEventListener('click', async () => {
+  const opts = await ouOptions();
+  const m = ADM.formModal({
+    title: '新建用户组', body: groupForm(null), okText: '创建',
+    onSubmit: async (form) => {
+      const data = ADM.formData(form);
+      data.domain_id = DOMAIN_ID;
+      const r = await ADM.post('/groups/create', data);
+      if (r.ok) setTimeout(() => location.reload(), 700);
+      return false;
+    }
+  });
+  const sel = m.form.querySelector('#gOuSel');
+  if (sel) sel.insertAdjacentHTML('beforeend', opts);
+});
+
+document.querySelectorAll('#groupTable [data-act]').forEach(btn => btn.addEventListener('click', async () => {
+  const tr = btn.closest('tr');
+  const gid = tr.dataset.id, name = tr.dataset.name;
+  if (btn.dataset.act === 'edit') {
+    ADM.formModal({
+      title: '编辑用户组 · ' + name,
+      body: groupForm({ name: name, sam_account_name: tr.dataset.sam,
+                        description: tr.dataset.desc || '', mail: tr.dataset.mail || '' }),
+      onSubmit: async (form) => {
+        const r = await ADM.post('/groups/' + gid + '/update', ADM.formData(form));
+        if (r.ok) setTimeout(() => location.reload(), 700);
+        return false;
+      }
+    });
+  } else if (btn.dataset.act === 'delete') {
+    const yes = await ADM.confirmDanger({
+      title: '删除用户组（不可恢复）',
+      message: '将从 AD 中删除该组对象。组内成员账号不会被删除，但通过该组继承的权限立即失效。',
+      items: ['组：' + name, 'DN：' + tr.dataset.dn],
+      requireInput: name, inputHint: '请输入组名「' + name + '」以确认删除',
+      confirmText: '确认删除'
+    });
+    if (!yes) return;
+    const r = await ADM.post('/groups/' + gid + '/delete', { confirm: '1' });
+    if (r.ok) setTimeout(() => location.reload(), 800);
+  }
+}));
+</script>
+{% endblock %}

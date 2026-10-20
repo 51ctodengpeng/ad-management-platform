@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% import 'partials/icons.html' as ic %}
+{% block title %}林间信任 · {{ app_name }}{% endblock %}
+{% block page_title %}林间信任管理{% endblock %}
+{% block page_sub %}共 {{ count }} 条信任关系，其中双向可验证 {{ verified }} 条 · 状态来自各域 CN=System 下的 trustedDomain 对象{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-sm btn-light border" id="btnRefreshAll">{{ ic.icon('refresh', 15) }} 刷新状态</button>
+<a class="btn btn-sm btn-primary" href="{{ url_for('trust.new') }}">{{ ic.icon('plus', 15) }} 一键创建林间信任</a>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-warning d-flex gap-2 align-items-start" style="font-size:12.5px">
+  <span class="mt-1">{{ ic.icon('warn', 16) }}</span>
+  <div>
+    <b>林间信任属于域级别重大变更。</b>创建后两个林之间将建立 Kerberos 认证通道，可能扩大身份认证的可信边界。
+    创建操作会通过 WinRM（5985/5986）连接双域控执行 <code>netdom trust</code>，并全程记录审计日志；失败不会修改任何缓存。
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">{{ ic.icon('link') }} 信任关系清单
+    <span class="ms-auto help-text">状态刷新为定时任务（每 30 分钟），也可手动触发</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>本林（本地信任方）</th>
+          <th>对方域 / 林</th>
+          <th>方向</th>
+          <th>类型</th>
+          <th>状态</th>
+          <th>双向验证</th>
+          <th>最后校验</th>
+          <th style="width:110px">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in trusts %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ t['domain_label'] }}</div>
+            {% set ld = dm.get(t['domain_id']) %}
+            <div class="help-text">{{ ld.domain_name if ld else '' }}</div>
+          </td>
+          <td>
+            <div class="fw-semibold">{{ t['partner'] }}</div>
+            {% if t['flat_name'] %}<div class="help-text">{{ t['flat_name'] }}</div>{% endif %}
+            {% if t['reverse_domain_id'] %}<span class="badge-soft blue">对方已在本系统登记</span>{% endif %}
+          </td>
+          <td>{{ direction_text.get(t['direction'], t['direction'] or '—') }}</td>
+          <td>{{ type_text.get(t['trust_type'], t['trust_type'] or '—') }}</td>
+          <td>
+            {% if t['status'] == 'active' %}<span class="badge-soft green">已启用</span>
+            {% elif t['status'] == 'disabled' %}<span class="badge-soft gray">已禁用</span>
+            {% else %}<span class="badge-soft amber">未知</span>{% endif %}
+          </td>
+          <td>
+            {% if t['verified'] %}<span class="badge-soft green">{{ ic.icon('check', 12) }} 双向可验证</span>
+            {% else %}<span class="badge-soft amber">待确认（对方未回信）</span>{% endif %}
+          </td>
+          <td class="help-text">{{ t['last_verified_at'] or t['synced_at'] or '—' }}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-light border" data-verify="{{ t['domain_id'] }}"
+                      data-partner="{{ t['partner'] }}">校验</button>
+              <button class="btn btn-light border text-danger" data-remove="{{ t['domain_id'] }}"
+                      data-partner="{{ t['partner'] }}">撤销</button>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8"><div class="empty-state">
+          {{ ic.icon('link', 32) }}
+          <div>暂无信任关系记录</div>
+          <div class="help-text mt-1">可点击右上角「一键创建林间信任」建立双向林信任；已有信任需执行一次同步后才会出现在此处</div>
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row g-3 mt-0">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('info') }} 信任方向说明</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9">
+        <b>双向</b>：两个林互相信任，双方用户可互相访问资源（最常见）。<br>
+        <b>入站</b>：对方林信任本林 —— 本林用户可访问对方资源。<br>
+        <b>出站</b>：本林信任对方林 —— 对方用户可访问本林资源。<br>
+        安全建议：仅在确有跨林访问需求时创建，优先使用出站/入站单向信任以缩小信任面。
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">{{ ic.icon('shield') }} 创建前提条件</div>
+      <div class="card-body" style="font-size:12.5px;line-height:1.9">
+        1. 双域控网络互通，DNS 能解析对方域名（本系统会先做 TCP/DNS 预检并提前报错）；<br>
+        2. 双域控已启用 WinRM（5985 或 5986），且使用域管理员账号；<br>
+        3. 两端管理员账号密码在创建时都需要提供（netdom 需双向认证）；<br>
+        4. 域功能级别与 SID 过滤设置需允许建立信任。
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnRefreshAll').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  ADM.btnLoading(btn, true, '刷新中…');
+  const r = await ADM.post('/trust/refresh', {});
+  ADM.btnLoading(btn, false);
+  if (r.ok) setTimeout(() => location.reload(), 1500);
+});
+
+document.querySelectorAll('[data-verify]').forEach(btn => btn.addEventListener('click', async (e) => {
+  const b = e.currentTarget;
+  ADM.btnLoading(b, true, '…');
+  const r = await ADM.post('/trust/refresh', { domain_id: b.dataset.verify });
+  ADM.btnLoading(b, false);
+  if (r.ok) setTimeout(() => location.reload(), 900);
+}));
+
+document.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', async (e) => {
+  const b = e.currentTarget;
+  const partner = b.dataset.partner, domainId = b.dataset.remove;
+  ADM.formModal({
+    title: '撤销林间信任（重大变更）',
+    body:
+      '<div class="alert alert-warning py-2 mb-3" style="font-size:12.5px">将删除本林对「' + ADM.esc(partner) + '」的信任，跨林身份认证与资源访问<b>立即中断</b>。</div>' +
+      '<label class="form-label">对方林管理员账号（可选）</label>' +
+      '<input class="form-control" name="remote_user" placeholder="如：corp.example.com\\\\administrator；填写后 netdom 双向删除两侧信任对象">' +
+      '<label class="form-label mt-2">对方林管理员密码（可选）</label>' +
+      '<input class="form-control" type="password" name="remote_pwd" placeholder="与上方账号配套；账号密码须为对方域的 Domain Admins / Enterprise Admins">' +
+      '<div class="alert alert-info py-2 mt-3" style="font-size:12px">不填对方凭据时，仅删除<b>本林侧</b>信任（netdom /oneside:OwningDomain）；对方林侧会残留单向信任，需对方管理员在其域控上手动移除。</div>' +
+      '<label class="form-label mt-3">确认：请输入对方域名「' + ADM.esc(partner) + '」</label>' +
+      '<input class="form-control" name="confirmText" autocomplete="off">',
+    okText: '确认撤销',
+    onSubmit: async (form) => {
+      if (form.querySelector('[name=confirmText]').value.trim() !== partner) {
+        ADM.err('确认输入与对方域名不一致'); return false;
+      }
+      const r = await ADM.post('/trust/remove', {
+        local_id: domainId, partner: partner, confirm: '1',
+        remote_user: form.querySelector('[name=remote_user]').value,
+        remote_pwd: form.querySelector('[name=remote_pwd]').value
+      });
+      if (r.ok) { setTimeout(() => location.reload(), 1000); return true; }
+      return false;
+    }
+  });
+}));
+</script>
+{% endblock %}
