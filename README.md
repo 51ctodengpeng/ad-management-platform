@@ -12,13 +12,13 @@
 
 **下载地址：<https://github.com/51ctodengpeng/ad-management-platform/releases>**
 
-| 文件 | 说明 |
+| 下载文件 | 说明 |
 | --- | --- |
-| `AD域控管理系统_安装程序_v1.0.3.exe` | Windows 安装包（约 24.7 MB），内含运行时，目标机无需 Python |
-| `AD域控管理系统用户操作手册.docx` | 运维操作手册 |
-| `用户文档与许可协议.html` | 安装向导内的用户文档与许可协议 |
+| `AD-Management-Setup-v1.0.3.exe` | Windows 安装包（约 24.7 MB），内含运行时，目标机无需 Python |
+| `AD-Management-User-Manual-v1.0.3.docx` | 用户操作手册 |
+| `User-Docs-and-EULA-v1.0.3.html` | 安装向导内的用户文档与许可协议 |
 
-校验值与安装前须知见 [`dist/v1.0.3/README.md`](dist/v1.0.3/README.md)，**装之前请先看一眼**。
+资产名用 ASCII 是 GitHub 的限制（Release 资产名不接受中文），下载后重命名不影响使用。校验值与安装前须知见 [`dist/v1.0.3/README.md`](dist/v1.0.3/README.md)，**装之前请先看一眼**。
 
 > 安全提示：这是内网运维工具，不要直接映射到公网；对外提供服务时必须启用 HTTPS。理由见 [`SECURITY.md`](SECURITY.md)。
 

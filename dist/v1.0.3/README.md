@@ -8,16 +8,18 @@
 
 ## v1.0.3
 
-| 文件 | 用途 | 大小 | SHA256 |
+| 下载文件 | 用途 | 大小 | SHA256 |
 | --- | --- | --- | --- |
-| `AD域控管理系统_安装程序_v1.0.3.exe` | Windows 安装包（Inno Setup），内含运行时，目标机无需装 Python | 24.7 MB | `d44922452abe6330bc65acf54b1cf99485793ae48d2ac043edc187058bfd271a` |
-| `AD域控管理系统用户操作手册.docx` | 面向运维的操作手册：登录、域接入、用户/OU/组管理、同步、常见故障 | 23 KB | `6fa06d195ae9b881ddeba4d13d8f41874218978f595f147395247c69793ba9af` |
-| `用户文档与许可协议.html` | 安装向导中展示的用户文档与许可协议原文 | 22 KB | `184cc42595411e33d9c5b03e1a81720b07fca9657d16634895b94d20259bb457` |
+| `AD-Management-Setup-v1.0.3.exe` | Windows 安装包（Inno Setup），内含运行时，目标机无需装 Python | 24.7 MB | `d44922452abe6330bc65acf54b1cf99485793ae48d2ac043edc187058bfd271a` |
+| `AD-Management-User-Manual-v1.0.3.docx` | 面向运维的操作手册：登录、域接入、用户/OU/组管理、同步、常见故障 | 23 KB | `6fa06d195ae9b881ddeba4d13d8f41874218978f595f147395247c69793ba9af` |
+| `User-Docs-and-EULA-v1.0.3.html` | 安装向导中展示的用户文档与许可协议原文 | 22 KB | `184cc42595411e33d9c5b03e1a81720b07fca9657d16634895b94d20259bb457` |
+
+> 资产名用 ASCII 是因为 GitHub 的 Release 资产名不接受非 ASCII 字符（实测会被改写成 `default.<ext>` 或直接丢掉中文字符）。下载后重命名成中文原名不影响使用。
 
 校验方式（Windows PowerShell）：
 
 ```powershell
-Get-FileHash .\AD域控管理系统_安装程序_v1.0.3.exe -Algorithm SHA256
+Get-FileHash .\AD-Management-Setup-v1.0.3.exe -Algorithm SHA256
 ```
 
 哈希与上表不一致时**不要安装**。
