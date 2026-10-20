@@ -49,3 +49,12 @@ temp/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---- 发布产物例外 ----
+# 安装包与文档统一走 GitHub Releases 分发（单个 exe 约 25 MB，不入 git 历史）；
+# 仓库内只保留 dist/<版本>/README.md 作为说明与校验值，其余一律忽略。
+!dist/
+dist/*
+!dist/v1.0.3/
+dist/v1.0.3/*
+!dist/v1.0.3/README.md

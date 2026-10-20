@@ -6,6 +6,24 @@
 
 ---
 
+## 0. 直接下载安装包
+
+不想装 Python、不想看源码的，用打包好的安装程序：
+
+**下载地址：<https://github.com/51ctodengpeng/ad-management-platform/releases>**
+
+| 文件 | 说明 |
+| --- | --- |
+| `AD域控管理系统_安装程序_v1.0.3.exe` | Windows 安装包（约 24.7 MB），内含运行时，目标机无需 Python |
+| `AD域控管理系统用户操作手册.docx` | 运维操作手册 |
+| `用户文档与许可协议.html` | 安装向导内的用户文档与许可协议 |
+
+校验值与安装前须知见 [`dist/v1.0.3/README.md`](dist/v1.0.3/README.md)，**装之前请先看一眼**。
+
+> 安全提示：这是内网运维工具，不要直接映射到公网；对外提供服务时必须启用 HTTPS。理由见 [`SECURITY.md`](SECURITY.md)。
+
+---
+
 ## 1. 快速开始
 
 ### 1.1 环境要求
@@ -88,7 +106,10 @@ AD域控管理系统/
 ├── templates/              Jinja2 模板（Bootstrap 5 + AdminLTE 风格）
 ├── static/                 CSS / JS / 本地化的 Bootstrap 资源
 ├── deploy/                 打包与部署脚本、Inno Setup 脚本、部署说明
-└── tests/                  自动化验证脚本
+├── dist/                   已发布的安装包与配套文档（按版本分目录）
+├── tests/                  自动化验证脚本
+├── SECURITY.md             安全策略与漏洞报告方式
+└── LICENSE                 MIT 许可
 ```
 
 ---
@@ -276,6 +297,10 @@ AD 要求 `unicodePwd` 必须在加密通道上写入。系统会自动尝试 LD
 
 ---
 
-## 11. 许可
+## 11. 许可与安全
 
-内部运维工具，未附带开源许可。
+本项目以 **MIT License** 发布，可自由使用、修改与再分发，保留版权声明即可，详见 [`LICENSE`](LICENSE)。
+
+软件按「现状」提供，不附带任何担保。**它能对真实 Active Directory 执行写操作**，请先在测试域验证再用于生产。
+
+发现安全问题请走私下渠道（仓库 **Security → Report a vulnerability**，或邮件 `dengpeng@powershell.com.cn`），不要开公开 Issue。范围界定、响应时效与部署硬性要求见 [`SECURITY.md`](SECURITY.md)。
